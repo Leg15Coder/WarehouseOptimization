@@ -8,7 +8,6 @@ from scripts.models.interfaces.abstract_warehouse import AbstractWarehouse
 from scripts.models.product import Product
 from scripts.models.selection_request import SelectionRequest
 from scripts.parsers.db_parser import Database
-from scripts.tmp_solve import Graph
 
 
 class Warehouse(AbstractWarehouse):
@@ -231,7 +230,14 @@ class Warehouse(AbstractWarehouse):
 
         Returns:
             int: Обновленное количество работников.
+
+        Raises:
+            ValueError: Если попытаться добавить отрицательное число работников
         """
+        if count < 0:
+            raise ValueError("Невозможно добавить отрицательное количество работников. Чтобы уволить работников "
+                             "используйте Warehouse::remove_workers")
+
         self.workers += count
         logging.debug(f"Изменено количество работников склада до {self.workers}")
         return self.workers
@@ -248,8 +254,13 @@ class Warehouse(AbstractWarehouse):
             int: Обновленное количество работников.
 
         Raises:
+            ValueError: Если попытаться удалить отрицательное число работников
             FireTooManyWorkersException: Если пытаются удалить больше работников, чем доступно.
         """
+        if count < 0:
+            raise ValueError("Невозможно уволить отрицательное количество работников. Чтобы нанять работников "
+                             "используйте Warehouse::add_workers")
+
         if self.workers - count < 0:
             raise FireTooManyWorkersException("Нельзя распустить больше работников, чем имеется")
 
@@ -396,5 +407,5 @@ class Warehouse(AbstractWarehouse):
                                            "установить начальную позицию")
 
     @override
-    def solve(self, request: SelectionRequest) -> Optional[dict]:  # todo on C++
+    def solve(self, request: SelectionRequest) -> Optional[dict]:
         logging.error("Отсутствует реализация алгоритма TSP")
