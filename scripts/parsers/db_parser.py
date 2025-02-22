@@ -1,3 +1,4 @@
+import logging
 import sqlite3 as sql
 from scripts.models.product import Product
 
@@ -13,6 +14,7 @@ class Database(object):
         Инициализация подключения к базе данных.
         Создаёт соединение с базой данных по указанному пути и инициализирует таблицы, если их ещё нет.
         """
+        logging.debug("Подключение к БД")
         self.connection = sql.connect('db/db.db')
         self.cursor = self.connection.cursor()
         self.init_tables()
@@ -51,6 +53,7 @@ class Database(object):
         - Products: хранит информацию о продуктах.
         - Warehouse: связывает продукты с ячейками склада и их количеством.
         """
+        logging.debug("Проверка данных в БД на корректность")
         self.execute(
             '''
             CREATE TABLE IF NOT EXISTS Cells (

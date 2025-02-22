@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Optional
 
 from scripts.exceptions.json_parser_exceptions import ExecutionError
@@ -18,6 +19,7 @@ class ParserManager(object):
         """
         Инициализирует объект ParserManager, создавая склад и определяя список поддерживаемых команд.
         """
+        logging.debug("Инициализация парсера данных формата JSON")
         self.warehouse = Warehouse()
         self.namespase = {
             "solve": solve,
@@ -54,8 +56,10 @@ class ParserManager(object):
         :raises KeyError: Если команда неизвестна.
         """
         if item in self.namespase:
+            logging.debug(f"Запрос на выполнение задачи {self.namespase[item]}")
             return self.namespase[item]
         else:
+            logging.warn("Неизвестный протокол обмена на уровне парсера")
             raise KeyError("Неизвестный протокол обмена")
 
     def execute(self, data: dict) -> None:

@@ -1,3 +1,4 @@
+import logging
 import random
 from collections.abc import Mapping
 from typing import Optional, override
@@ -27,6 +28,7 @@ class Warehouse(AbstractWarehouse):
     """
 
     def __init__(self):
+        logging.debug("Инициализация модели склада")
         self.db = Database()
         self.size = (0, 0)
         self.start_cords = (0, 0)
@@ -231,6 +233,7 @@ class Warehouse(AbstractWarehouse):
             int: Обновленное количество работников.
         """
         self.workers += count
+        logging.debug(f"Изменено количество работников склада до {self.workers}")
         return self.workers
 
     @override
@@ -251,6 +254,7 @@ class Warehouse(AbstractWarehouse):
             raise FireTooManyWorkersException("Нельзя распустить больше работников, чем имеется")
 
         self.workers -= count
+        logging.debug(f"Изменено количество работников склада до {self.workers}")
         return self.workers
 
     @override
@@ -277,7 +281,9 @@ class Warehouse(AbstractWarehouse):
             products.remove(product)
             result.append((product, random.randint(1, 8)))
 
-        return SelectionRequest(*result)
+        result = SelectionRequest(*result)
+        logging.debug(f"Добавлен новый запрос на отбор товаров: {result}")
+        return result
 
     @override
     def fill(self) -> None:
@@ -288,7 +294,9 @@ class Warehouse(AbstractWarehouse):
             EmptyCellException: Если на складе нет ячеек.
         """
         cells = self.db.get_all_cells()
+        logging.debug("Заполнение склада товарами")
         if not all(self.size) or not cells:
+            logging.error("Ошибка при заполнении склада")
             raise EmptyCellException("На складе нет ни одной ячейки")
 
         products = self.db.get_all_products()
@@ -325,8 +333,10 @@ class Warehouse(AbstractWarehouse):
             IncompleteMapException: Если карта не имеет прямоугольной формы.
         """
         if not len(layout) or not len(layout[0]):
+            logging.error("Невозможно построить склад по заданным параметрам")
             raise IllegalSizeException("Нельзя создать склад с нулём ячеек")
         self.size = (len(layout), len(layout[0]))
+        logging.info("Построение модели склада по заданным параметрам")
 
         # Удаляем старые данные
         self.db.execute("DELETE FROM Warehouse")
@@ -348,7 +358,7 @@ class Warehouse(AbstractWarehouse):
         try:
             self.fill()  # Заполняем склад продуктами
         except WarehouseException:
-            print("Ошибка при заполнении склада")
+            logging.error("Ошибка при заполнении склада")
 
     @override
     def is_empty_cell(self, cell: tuple[int, int]) -> bool:
@@ -378,12 +388,13 @@ class Warehouse(AbstractWarehouse):
             WrongTypeOfCellException: Если ячейка непригодна для установки начальной точки.
         """
         if self.is_moving_cell(cell):
+            logging.info(f"Установлена новая стартовая точка склада (координаты: {cell})")
             self.start_cords = cell
         else:
+            logging.warn("Ошибка при попытке установить новую стартовую точку склада")
             raise WrongTypeOfCellException("Даннам координатам соответствует ячейка склада, поэтому невозможно "
                                            "установить начальную позицию")
 
     @override
     def solve(self, request: SelectionRequest) -> Optional[dict]:  # todo on C++
-        result = Graph(self).solve(request)
-        return result if result is None else {'cells': result}
+        logging.error("Отсутствует реализация алгоритма TSP")

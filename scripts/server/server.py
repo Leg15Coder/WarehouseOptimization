@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 import websockets
 import json
 import random
@@ -21,7 +23,7 @@ async def server_handler(websocket: ServerConnection) -> None:
     :param websocket: Объект подключения клиента.
     """
     connected_clients.add(websocket)  # Добавляем клиента в список подключённых
-    print(f"Клиент {websocket.id} подключился")
+    logging.info(f"Клиент {websocket.id} подключился")
     # Запуск фоновой задачи для отправки статуса сервера клиенту
     # asyncio.create_task(send_server_status(websocket))
 
@@ -34,8 +36,9 @@ async def server_handler(websocket: ServerConnection) -> None:
             try:
                 data['websocket'] = websocket
                 await manager.execute(data)
-                print(f"Сервер принял сообщение")
+                logging.debug(f"Сервер принял сообщение {data}")
             except Exception as e:
+                logging.warn(f"Ошибка обработки на стороне сервера {e}")
                 response = {
                     "type": "answer",
                     "status": "Internal Server Error",
@@ -46,9 +49,9 @@ async def server_handler(websocket: ServerConnection) -> None:
 
     except ConnectionClosed:
         # Обработка ситуации, когда клиент разорвал соединение
-        print(f"Клиент {websocket.id} отключился до завершения сессии")
+        logging.warn(f"Клиент {websocket.id} отключился до завершения сессии")
     except Exception as e:
-        print(f"Ошибка обработки запроса: {e}")
+        logging.error(f"Ошибка обработки запроса: {e}")
     finally:
         # Удаляем клиента из списка подключённых
         connected_clients.remove(websocket)
@@ -75,12 +78,12 @@ async def send_server_status(websocket: ServerConnection) -> None:
                 "body": data
             }
             await websocket.send(json.dumps(message))
-            print(f"Сервер отправил сообщение")
+            logging.debug(f"Сервер отправил сообщение {message}")
 
         except ConnectionClosed:
-            print(f"Клиент {websocket.id} отключился")
+            logging.info(f"Клиент {websocket.id} отключился")
             break
         except Exception as e:
             # Логирование ошибок при отправке сообщения
-            print(f"Ошибка при отправке сообщения: {e}")
+            logging.error(f"Ошибка при отправке сообщения: {e}")
         await asyncio.sleep(0.5)
