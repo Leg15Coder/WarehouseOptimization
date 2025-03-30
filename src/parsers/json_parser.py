@@ -2,8 +2,8 @@ import json
 import logging
 from typing import Optional
 
-from scripts.exceptions.json_parser_exceptions import ExecutionError
-from scripts.models.warehouse_on_db import Warehouse
+from src.exceptions.json_parser_exceptions import ExecutionError
+from src.models.warehouse_on_db import Warehouse
 
 
 class ParserManager(object):

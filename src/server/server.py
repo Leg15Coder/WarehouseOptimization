@@ -7,8 +7,8 @@ import random
 from websockets.asyncio.server import ServerConnection
 from websockets.exceptions import ConnectionClosed
 
-from scripts.parsers.json_parser import ParserManager
-from scripts.exceptions.json_parser_exceptions import ExecutionError
+from src.parsers.json_parser import ParserManager
+from src.exceptions.json_parser_exceptions import ExecutionError
 
 # Хранение подключённых клиентов
 connected_clients = set()

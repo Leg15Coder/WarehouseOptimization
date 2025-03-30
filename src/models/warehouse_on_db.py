@@ -3,11 +3,11 @@ import random
 from collections.abc import Mapping
 from typing import Optional, override
 
-from scripts.exceptions.warehouse_exceptions import FireTooManyWorkersException, EmptyCellException, WarehouseException
-from scripts.models.interfaces.abstract_warehouse import AbstractWarehouse
-from scripts.models.product import Product
-from scripts.models.selection_request import SelectionRequest
-from scripts.parsers.db_parser import Database
+from src.exceptions.warehouse_exceptions import FireTooManyWorkersException, EmptyCellException, WarehouseException
+from src.models.interfaces.abstract_warehouse import AbstractWarehouse
+from src.models.product import Product
+from src.models.selection_request import SelectionRequest
+from src.parsers.db_parser import Database
 
 
 class Warehouse(AbstractWarehouse):

@@ -1,7 +1,7 @@
 from typing import Optional
 
-from scripts.models.product import Product
-from scripts.models.selection_request import SelectionRequest
+from src.models.product import Product
+from src.models.selection_request import SelectionRequest
 
 
 class AbstractWarehouse(object):

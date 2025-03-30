@@ -1,6 +1,6 @@
 import logging
 import sqlite3 as sql
-from scripts.models.product import Product
+from src.models.product import Product
 
 
 class Database(object):

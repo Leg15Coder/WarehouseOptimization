@@ -4,9 +4,9 @@ import asyncio
 import websockets
 import socket
 
-from scripts.models.product import Product
-from scripts.models.warehouse_on_db import Warehouse
-from scripts.server.server import server_handler
+from src.models.product import Product
+from src.models.warehouse_on_db import Warehouse
+from src.server.server import server_handler
 
 
 async def main():

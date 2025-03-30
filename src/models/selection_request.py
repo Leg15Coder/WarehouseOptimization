@@ -1,7 +1,7 @@
 from typing import Iterable
 
-from scripts.exceptions.selection_exceptions import UnsupportedFormat, BadInstance
-from scripts.models.product import Product
+from src.exceptions.selection_exceptions import UnsupportedFormat, BadInstance
+from src.models.product import Product
 
 
 class SelectionRequest(object):
