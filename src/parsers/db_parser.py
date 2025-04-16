@@ -31,7 +31,7 @@ class Database(object):
                 port=config.dbport.get_secret_value()
             )
             self.cursor = self.connection.cursor()
-        except OperationalError as e:
+        except OperationalError | OSError as e:
             logging.error(f"Не удалось подключиться к БД: {e}")
             raise ConnectionError(f"Не удалось подключиться к БД: {e}")
 
@@ -88,7 +88,7 @@ class Database(object):
 
         :return: Кортеж с информацией обо всех ячейках склада.
         """
-        return self.get_by_prompt("SELECT * FROM Cells")
+        return self.get_by_prompt("SELECT * FROM cell")
 
     def get_all_products(self) -> tuple:
         """
@@ -96,7 +96,7 @@ class Database(object):
 
         :return: Кортеж с информацией обо всех продуктах.
         """
-        return self.get_by_prompt("SELECT * FROM Products")
+        return self.get_by_prompt("SELECT * FROM product")
 
     def create_product_type(self, product: Product) -> None:
         """
@@ -104,11 +104,12 @@ class Database(object):
 
         :param product: Объект Product, представляющий добавляемый продукт.
         """
+        product_type = 'NONETYPE' if product.product_type is None else product.product_type
         self.execute(
             '''
-            INSERT INTO Products (sku, time_to_select, time_to_ship) VALUES (?, ?, ?)
+            INSERT INTO product (product_sku, time_to_select, time_to_ship, max_amount, product_type) VALUES (?, ?, ?)
             ''',
-            params=(product.sku, product.time_to_select, product.time_to_ship)
+            params=(product.sku, product.time_to_select, product.time_to_ship, product.max_amount, product_type)
         )
 
     async def backup(self):
