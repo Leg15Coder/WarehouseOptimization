@@ -1,9 +1,9 @@
-from src.algorithm.app import SizeType
-
 import numpy as np
 import pandas as pd
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import LabelEncoder
+
+from src.algorithm.app import SizeType
 
 
 class Clusterizer:
@@ -18,6 +18,8 @@ class Clusterizer:
         def contains(self, obj) -> bool:
             if isinstance(obj, int):
                 return obj in self.cell_ids
+            elif isinstance(obj, tuple):
+                return obj in db.get_by_prompt(f"SELECT id FROM cell WHERE x={obj[0]} AND y={obj[1]}")
             return False
 
     clusters: set[Cluster] = None
@@ -25,6 +27,7 @@ class Clusterizer:
     parameters: dict = dict()
     size_type: SizeType = None
 
+    __is_updated: bool = False
     __eps: float = 5
     __min_samples: int = 3
 
@@ -45,13 +48,13 @@ class Clusterizer:
         density = num_cells / area if area else 0
 
         # Определяем размер склада по числу ячеек
-        if num_cells < 40:
+        if num_cells < 50:
             self.size_type = SizeType.TINY
-        elif num_cells < 500:
-            self.size_type = SizeType.SMALL
         elif num_cells < 2000:
+            self.size_type = SizeType.SMALL
+        elif num_cells < 7000:
             self.size_type = SizeType.MEDIUM
-        elif num_cells < 5000:
+        elif num_cells < 10000:
             self.size_type = SizeType.LARGE
         else:
             self.size_type = SizeType.EXTRA_LARGE
@@ -96,21 +99,23 @@ class Clusterizer:
                 WHERE c.count > 0
             """
 
-        async with db.connection() as conn:
+        async with db.connection as conn:
             cells_df = await conn.fetch_df(query)    # conn возьму из Database class
 
         if cells_df.empty:
             return  # Сообщить об ошибке
 
         # Подсчёт заполненности
-        cells_df['fill_ratio'] = cells_df['count'] / cells_df['max_amount']
+        cells_df['fill_ratio'] = cells_df['count'] / cells_df['max_amount'] * 100
 
         # Кодирование категориального признака
         le = LabelEncoder()
         cells_df['product_type_encoded'] = le.fit_transform(cells_df['product_type'])
 
-        # Вектор признаков: X, Y, заполненность, тип
-        features = cells_df[['x', 'y', 'fill_ratio', 'product_type_encoded']].values
+        start_x, start_y = self.warehouse.get_start()
+        cells_df['dist_to_start'] = np.sqrt((cells_df['x'] - start_x) ** 2 + (cells_df['y'] - start_y) ** 2)
+
+        features = cells_df[['x', 'y', 'fill_ratio', 'product_type_encoded', 'dist_to_start']].values
 
         # Кластеризация
         clustering = DBSCAN(eps=self.__eps, min_samples=self.__min_samples).fit(features)
@@ -122,14 +127,17 @@ class Clusterizer:
             if cluster_id != -1
         }
 
-        self.noise = {
+        self.clusters |= {
             self.Cluster(cluster_id, group['cell_id'].tolist())
             for cluster_id, group in cells_df.groupby('cluster')
             if cluster_id == -1  # -1 означает "шум" в DBSCAN
         }
 
     async def get_clusters(self) -> set[Clusters]:
-        if self.clusters is None:
+        if self.clusters is None or not self.__is_updated:
             await self.clusterize()
+            self.__is_updated = True
+            return self.clusters
 
+        self.__is_updated = False
         return self.clusters
