@@ -8,19 +8,57 @@ from src.algorithm.app import SizeType
 
 class Clusterizer:
     class Cluster:
+        class Cell:
+            def __init__(self, cell_id: int):
+                self.id = cell_id
+                self.x = None
+                self.y = None
+                self.product = None
+                self.count = None
+
         def __init__(self, cluster_id: int, cell_ids: list[int]):
             self.id = cluster_id
-            self.cell_ids = set(cell_ids)
+            self.cells = {Cell(cell_id) for cell_id in cell_ids}
+            self._product_counts = {}
+            self._fill_ratios = {}
+            self._centroid = None
+            self._cache_data(self.cells)
 
         def __repr__(self):
-            return f"<Cluster {self.id}: {len(self.cell_ids)} cells>"
+            return f"<Cluster {self.id}: {len(self.cells)} cells>"
+
+        def _cache_data(self, cells: set[Cell]):
+            product_count = {}
+            fill_ratio = {}
+
+            total_x, total_y = 0, 0
+
+            for cell in cells:
+                product_count[cell.product.sku] = product_count.get(cell.product.sku, 0) + cell.count
+                fill_ratio[cell.product.sku] = fill_ratio.get(cell.product.sku, 0) + cell.count / cell.product.max_amount
+                total_x += cell.x
+                total_y += cell.y
+
+            self._product_counts = product_count
+            self._fill_ratios = fill_ratio
+            self._centroid = (total_x / len(cells), total_y / len(cells))
 
         def contains(self, obj) -> bool:
             if isinstance(obj, int):
-                return obj in self.cell_ids
+                return obj in (cell.id for cell in self.cells)
             elif isinstance(obj, tuple):
-                return obj in db.get_by_prompt(f"SELECT id FROM cell WHERE x={obj[0]} AND y={obj[1]}")
+                return obj in ((cell.x, cell.y) for cell in self.cells)
+            elif isinstance(obj, Product):
+                return obj in (cell.product for cell in self.cells)
             return False
+
+        def score_for_product_type(self, product_type: str) -> float:
+            count = self._product_counts.get(product_type, 0)
+            fill = self._fill_ratios.get(product_type, 0)
+            return count + fill
+
+        def distance_to_point(self, point: tuple) -> float:
+            return np.linalg.norm(np.array(self._centroid) - np.array(point))
 
     clusters: set[Cluster] = None
     warehouse: Warehouse = None
