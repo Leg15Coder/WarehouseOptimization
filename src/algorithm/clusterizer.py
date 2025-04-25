@@ -52,9 +52,9 @@ class Clusterizer:
                 return obj in (cell.product for cell in self.cells)
             return False
 
-        def score_for_product_type(self, product_type: str) -> float:
-            count = self._product_counts.get(product_type, 0)
-            fill = self._fill_ratios.get(product_type, 0)
+        def score_for_product(self, product_sku: Product) -> float:
+            count = self._product_counts.get(product_sku, 0)
+            fill = self._fill_ratios.get(product_sku, 0)
             return count + fill
 
         def distance_to_point(self, point: tuple) -> float:

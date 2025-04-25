@@ -1,8 +1,13 @@
 import asyncio
+from asyncio import PriorityQueue
 import threading
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
-from queue import PriorityQueue
+
+from utils import run_async_thread
+from clusterizer.Clusterizer.Cluster import Cell
+from clusterizer import Clusterizer
 
 
 class SizeType(Enum):
@@ -57,12 +62,18 @@ class Algorithm:
     requests_queue: PriorityQueue[SelectionRequest]
     requests_in_wait: dict[Product, int]
     requests_in_process: dict[Product, int]
+    outbox_container: list
 
     deadline_flag: __FlagContainer = __FlagContainer()
     full_stack_flag: __FlagContainer = __FlagContainer()
     one_product_left_flag: __FlagContainer = __FlagContainer()
 
-    locker: threading.Lock = threading.Lock()
+    thread_locker: threading.Lock = threading.Lock()
+    async_locker: asyncio.Lock = asyncio.Lock()
+    _stop_event: threading.Event
+    __threads: list[threading.Thread] = list()
+    __executor: ThreadPoolExecutor
+    _async_task: asyncio.Task
 
     def __init__(self):
         self.warehouse = Warehouse()
@@ -72,17 +83,47 @@ class Algorithm:
         self.requests_queue = PriorityQueue()
         self.requests_in_wait = dict()
         self.requests_in_process = dict()
+        self.outbox_container = list()
 
-        threading.Thread(target=self.check_flags, daemon=True).start()
+        self._stop_event = threading.Event()
+        self.__executor = ThreadPoolExecutor(max_workers=256)
+        self._async_task = asyncio.create_task(self.check_flags())
 
-    def check_flags(self):
-        threading.Thread(target=self._watch_flags_loop, daemon=True).start()
-        threading.Thread(target=self._watch_one_product_left, daemon=True).start()
-        threading.Thread(target=self._schedule_deadline_check, daemon=True).start()
+    def __del__(self):
+        self._stop_event.set()
+
+        if hasattr(self, '_async_task'):
+            self._async_task.cancel()
+
+        self.__executor.shutdown(wait=False)
+
+        for thread in self.__threads:
+            if thread.is_alive():
+                thread.join(timeout=1)
+
+    async def solve(self, request: SelectionRequest) -> Optional[str]:
+        async with self.thread_locker, self.async_locker:
+            await self.requests_queue.put(request)
+
+            for product in request:
+                count = request[product]
+                if product in self.requests_in_wait:
+                    self.requests_in_wait[product] += count
+                else:
+                    self.requests_in_wait[product] = count
+
+            if bool(self.outbox_container):
+                self.outbox_container.clear()
+                return "SUCCESS"
+
+    async def check_flags(self):
+        self._run_thread(self._watch_flags_loop)
+        self._run_thread(self._watch_one_product_left)
+        self._run_thread(self._schedule_deadline_check)
 
         while True:
-            self.run_algorithm()
-            asyncio.sleep(1)
+            await asyncio.get_running_loop().run_in_executor(None, func)
+            await asyncio.sleep(1)
 
     def _watch_flags_loop(self):
         while True:
@@ -94,11 +135,11 @@ class Algorithm:
 
             if local_flag:
                 self.full_stack_flag = +self.full_stack_flag
-            asyncio.sleep(1)
+            datatime.time.sleep(1)
 
     def _watch_one_product_left(self):
         while True:
-            continue
+            continue  # todo later
             local_flag = False
             for request in self.requests_queue:
                 if abs(request) == 1:  # Остался последний товар
@@ -107,7 +148,7 @@ class Algorithm:
 
             if local_flag:
                 self.one_product_left_flag = +self.one_product_left_flag
-            asyncio.sleep(1)
+            datatime.time.sleep(1)
 
     def _schedule_deadline_check(self):
         while True:
@@ -120,45 +161,58 @@ class Algorithm:
 
             if local_flag:
                 self.deadline_flag = +self.deadline_flag
-            asyncio.sleep(1)
+            datatime.time.sleep(1)
+
+    def _run_thread(self, sync_func) -> None:
+        thread = threading.Thread(target=sync_func, daemon=True)
+        self.__threads.append(thread)
+        thread.start()
 
     async def run_algorithm(self):
         clusters = None
         if self.deadline_flag:
-            with self.locker:
+            async with self.thread_locker, self.async_locker:
                 await self.add_to_process(self.deadline_flag.request)
                 clusters = await self.choose_clusters(self.deadline_flag.request)
 
         elif self.full_stack_flag:
-            with self.locker:
+            async with self.thread_locker, self.async_locker:
                 await self.add_to_process(self.full_stack_flag.request)
                 clusters = await self.choose_clusters(self.full_stack_flag.request)
 
         elif self.one_product_left_flag:
-            with self.locker:
+            async with self.thread_locker, self.async_locker:
                 await self.add_to_process(self.one_product_left_flag.request)
                 clusters = await self.choose_clusters(self.one_product_left_flag.request)
 
         if clusters:
-            cells = self.choose_cells(clusters)
-            path = self.build_way(cells)
-            return path
+            cells = await self.choose_cells(clusters)
+            self.outbox_container.append(await self.build_way(cells))
 
     async def add_to_process(self, request: SelectionRequest) -> None:
-        with self.locker:
+        async with self.thread_locker, self.async_locker:
             for product in request:
                 count = request[product]
                 self.requests_in_wait[ProductWrapper(product, None)] -= count
                 self.requests_in_process[ProductWrapper(product, None)] += count
 
-    async def solve(self, request: SelectionRequest) -> Optional[str]:
+    @run_async_thread
+    def choose_clusters(self, request: SelectionRequest) -> set[Cluster]:
+        result = set()
+
+        for product in request:
+            count = request[product]
+
+            for cluster in self.clusters_controller.clusters:
+                if cluster.score_for_product(product.sku) > 2 * count:
+                    result.add(cluster)
+
+        return result
+
+    @run_async_thread
+    def choose_cells(self, clusters: set[Cluster]) -> set[Cell]:
         pass
 
-    async def choose_clusters(self, request: SelectionRequest) -> list[Cluster]:
-        pass
-
-    async def choose_cells(self, clusters: list[Cluster]) -> set[int]:
-        pass
-
-    async def build_way(self, cells: set[int]) -> list[int]:
+    @run_async_thread
+    def build_way(self, cells: set[Cell]) -> list[int]:
         pass
