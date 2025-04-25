@@ -196,7 +196,7 @@ class Algorithm:
                 self.requests_in_wait[ProductWrapper(product, None)] -= count
                 self.requests_in_process[ProductWrapper(product, None)] += count
 
-    @run_async_thread
+    @run_async_thread(self.__executor)
     def choose_clusters(self, request: SelectionRequest) -> set[Cluster]:
         result = set()
 
@@ -209,10 +209,10 @@ class Algorithm:
 
         return result
 
-    @run_async_thread
+    @run_async_thread(self.__executor)
     def choose_cells(self, clusters: set[Cluster]) -> set[Cell]:
         pass
 
-    @run_async_thread
+    @run_async_thread(self.__executor)
     def build_way(self, cells: set[Cell]) -> list[int]:
         pass
