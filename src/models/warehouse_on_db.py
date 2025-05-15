@@ -48,7 +48,7 @@ class Warehouse(AbstractWarehouse):
         """
         x, y = cell
         result = self.db.get_by_prompt(
-            f"SELECT id FROM Cells WHERE x={x} AND y={y}"
+            f"SELECT id FROM cell WHERE x={x} AND y={y}"
         )
         return result[0][0] if result else None
 
@@ -63,7 +63,7 @@ class Warehouse(AbstractWarehouse):
             Optional[tuple]: Данные о продуктах в ячейке или None, если ячейка пуста.
         """
         result = self.db.get_by_prompt(
-            f"SELECT * FROM Warehouse WHERE cell_id={self.__get_cell(cell)}"
+            f"SELECT * FROM cell WHERE cell_id={self.__get_cell(cell)}"
         )
         return result[0] if result else None
 
@@ -81,10 +81,10 @@ class Warehouse(AbstractWarehouse):
         product = self.__get_all_from_cell(cell)
 
         if product:
-            _, sku, count, __ = product
+            _, x, y, sku, count, zone = product
 
             product = self.db.get_by_prompt(
-                f"SELECT * FROM Products WHERE sku={sku}"
+                f"SELECT * FROM product WHERE product_sku={sku}"
             )
             product = Product(*product[0])
 
@@ -110,9 +110,9 @@ class Warehouse(AbstractWarehouse):
         if not result:
             raise EmptyCellException("На данной ячейке ничего не лежит")
 
-        sku = result[1]
+        sku = result[3]
         product = self.db.get_by_prompt(
-            f"SELECT * FROM Products WHERE sku={sku}"
+            f"SELECT * FROM product WHERE product_sku={sku}"
         )[0]
         return Product(*product)
 
@@ -168,7 +168,7 @@ class Warehouse(AbstractWarehouse):
 
         # Удаляем все продукты из ячейки
         self.db.execute(
-            f"DELETE FROM Warehouse WHERE cell_id={cell_id}"
+            f"DELETE FROM cell WHERE cell_id={cell_id}"
         )
 
         # Перезаписываем оставшиеся продукты после удаления
@@ -179,9 +179,9 @@ class Warehouse(AbstractWarehouse):
             if cur_products[product] > 0:
                 self.db.execute(
                     '''
-                    INSERT INTO Warehouse (sku, count, cell_id) VALUES (?, ?, ?)
+                    INSERT INTO cell (cell_id, x, y, product_sku, count, zone) VALUES (?, ?, ?, ?, ?)
                     ''',
-                    params=(product.sku, cur_products[product], cell_id)
+                    params=(cell_id, cell[0], cell[1], product.sku, cur_products[product], zone)
                 )
 
     @override
@@ -205,7 +205,7 @@ class Warehouse(AbstractWarehouse):
 
         # Удаляем все текущие данные из ячейки
         self.db.execute(
-            f"DELETE FROM Warehouse WHERE cell_id={cell_id}"
+            f"DELETE FROM cell WHERE cell_id={cell_id}"
         )
 
         # Обновляем данные о продуктах
@@ -215,9 +215,9 @@ class Warehouse(AbstractWarehouse):
         # Вставляем обновленные данные обратно
         self.db.execute(
             '''
-            INSERT INTO Warehouse (sku, count, cell_id) VALUES (?, ?, ?)
+            INSERT INTO cell (cell_id, x, y, product_sku, count, zone) VALUES (?, ?, ?, ?, ?)
             ''',
-            params=(product.sku, cur_products[product], cell_id)
+            params=(cell_id, cell[0], cell[1], product.sku, cur_products[product], zone)
         )
 
     @override
@@ -326,9 +326,9 @@ class Warehouse(AbstractWarehouse):
 
                 self.db.execute(
                     '''
-                    INSERT INTO Warehouse (sku, count, cell_id) VALUES (?, ?, ?)
+                    INSERT INTO cell (cell_id, x, y, product_sku, count, zone) VALUES (?, ?, ?, ?, ?)
                     ''',
-                    params=(product_sku, count, cell_id)
+                    params=(cell_id, x, y, product_sku, count, zone)
                 )
 
     @override
@@ -350,8 +350,7 @@ class Warehouse(AbstractWarehouse):
         logging.info("Построение модели склада по заданным параметрам")
 
         # Удаляем старые данные
-        self.db.execute("DELETE FROM Warehouse")
-        self.db.execute("DELETE FROM Cells")
+        self.db.execute("DELETE FROM cell")
 
         # Заполняем базу данных новыми ячейками
         for x in range(self.size[0]):
@@ -361,8 +360,8 @@ class Warehouse(AbstractWarehouse):
             for y in range(self.size[1]):
                 if layout[x][y]:
                     self.db.cursor.execute(
-                        "INSERT INTO Cells (x, y) VALUES (?, ?)",
-                        (x, y)
+                        "INSERT INTO cell (x, y, product_sku, count) VALUES (?, ?)",
+                        (x, y, -1, 0)
                     )
         self.db.connection.commit()
 
@@ -384,9 +383,9 @@ class Warehouse(AbstractWarehouse):
         """
         cell_id = self.__get_cell(cell)
         connections_with_cell = self.db.get_by_prompt(
-            f"SELECT * FROM Warehouse WHERE cell_id={cell_id}"
-        )
-        return not connections_with_cell
+            f"SELECT * FROM cell WHERE cell_id={cell_id}"
+        )[0]
+        return connections_with_cell[3] == -1 or connections_with_cell[4] < 0
 
     def set_start(self, cell: tuple[int, int]) -> None:
         """

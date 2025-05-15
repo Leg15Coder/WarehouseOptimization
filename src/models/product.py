@@ -1,35 +1,36 @@
+from pandas.io.sql import execute
+
+
 class Product(object):
     """
     Класс, представляющий продукт на складе.
-
-    Атрибуты:
-        sku (int): Уникальный идентификатор продукта (артикул).
-        time_to_select (float): Время, необходимое для выбора продукта со склада (в секундах или минутах).
-        time_to_ship (float): Время, необходимое для отгрузки продукта (в секундах или минутах).
-        limits (dict): Дополнительные ограничения или параметры продукта.
     """
 
-    def __init__(self, sku: int, time_to_select: float, time_to_ship: float, **kwargs):
+    def __init__(self, sku: int, time_to_select: float, time_to_ship: float, max_amount: int = 1, product_type=None, **kwargs):
         """
         Инициализирует объект продукта.
 
         Args:
-            sku (int): Уникальный идентификатор продукта (артикул).
-            time_to_select (float): Время на выбор продукта.
-            time_to_ship (float): Время на отгрузку продукта.
+            sku (int): Уникальный идентификатор товара (артикул).
+            time_to_select (float): Время на выбор товара.
+            time_to_ship (float): Время на отгрузку товара.
+            max_amount (int): Максимальное количество данного товара в одной ячейке.
+            product_type (Optional[str]): Категория товара.
             **kwargs: Дополнительные параметры продукта.
         """
         self.sku = sku
         self.time_to_select = time_to_select
         self.time_to_ship = time_to_ship
         self.limits = dict(kwargs)
+        self.max_amount = max_amount
+        self.product_type = product_type
 
     def check_limits(self) -> None:
         """
-        Проверяет, соблюдаются ли ограничения продукта.
+        Проверяет, соблюдаются ли ограничения товара.
 
         Метод может быть реализован для проверки дополнительных параметров,
-        таких как максимальный вес, объем или иные свойства продукта.
+        таких как максимальный вес, объем или иные свойства товара.
 
         Returns:
             None
@@ -38,7 +39,7 @@ class Product(object):
 
     def __str__(self):
         """
-        Возвращает строковое представление продукта (артикул).
+        Возвращает строковое представление товара (артикул).
 
         Returns:
             str: Артикул продукта.
@@ -47,7 +48,7 @@ class Product(object):
 
     def __repr__(self):
         """
-        Возвращает строковое представление продукта для целей отладки.
+        Возвращает строковое представление товара для целей отладки.
 
         Returns:
             str: Артикул продукта.
