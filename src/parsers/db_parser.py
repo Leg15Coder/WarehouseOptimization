@@ -38,6 +38,8 @@ class Database(object):
             logging.error(f"Не удалось подключиться к БД: {e}")
             raise ConnectionError(f"Не удалось подключиться к БД: {e}")
 
+        self.init_tables()
+
     def __del__(self):
         """
         Завершение работы с базой данных.
@@ -53,7 +55,21 @@ class Database(object):
 
     def init_tables(self):
         """Создаёт все таблицы в базе данных, если они ещё не существуют."""
+        logging.debug("Проверка данных в БД")
+        logging.debug("Создание таблиц")
         self.base.metadata.create_all(self.engine)
+        names = (
+            'V1__create_tables.sql',
+            'V2__add_constraints.sql',
+            'V3__add_triggers.sql'
+        )
+
+        with self.engine.connect() as connection:
+            for f in names:
+                with open(rf'db/migrations/{f}', 'r') as file:
+                    logging.debug(f"Проверка по {f}")
+                    connection.execute(file.read())
+        logging.debug("Проверка выполнена успешно")
 
 
 db = Database()

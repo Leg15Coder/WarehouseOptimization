@@ -64,6 +64,9 @@ class SelectionRequest(object):
     def __iter__(self):
         return self.data
 
+    def __bool__(self):
+        return bool(self.data)
+
     def add_products_from_list(self, products: Iterable) -> None:
         """
         Добавляет продукты в запрос из списка кортежей.

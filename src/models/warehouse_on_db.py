@@ -14,7 +14,7 @@ from src.models.selection_request import SelectionRequest
 from src.parsers.db_parser import db
 
 
-class Warehouse(AbstractWarehouse):
+class Warehouse:
     def __init__(self):
         logging.debug("Инициализация модели склада")
         self.session = db.session
@@ -29,12 +29,15 @@ class Warehouse(AbstractWarehouse):
     def get_all_cells(self) -> list[Cell]:
         return self.session.query(Cell).all()
 
+    def get_cells_by_product_sku(self, sku: int) -> list[Cell]:
+        return self.session.query(Cell).filter(Cell.product_sku == sku).all()
+
     def get_cell_by_id(self, cell_id: int) -> Cell:
         return self.session.query(Cell).filter(Cell.cell_id == cell_id).first()
 
     def get_zones_by_user(self, user_id: int) -> list[Zone]:
         user = self.session.query(User).filter(User.user_id == user_id).first()
-        return user.zones if user else []
+        return user.zones if user else list()
 
     def get_all_products(self) -> list[Product]:
         return self.session.query(Product).all()
