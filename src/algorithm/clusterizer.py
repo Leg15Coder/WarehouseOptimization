@@ -4,21 +4,16 @@ from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import LabelEncoder
 
 from src.algorithm.app import SizeType
+from src.server.models.cell import Cell
+from src.server.models.warehouse_on_db import Warehouse
+from src.parsers.db_parser import db
 
 
 class Clusterizer:
     class Cluster:
-        class Cell:
-            def __init__(self, cell_id: int):
-                self.id = cell_id
-                self.x = None
-                self.y = None
-                self.product = None
-                self.count = None
-
-        def __init__(self, cluster_id: int, cell_ids: list[int]):
+        def __init__(self, warehouse: Warehouse, cluster_id: int, cell_ids: list[int]):
             self.id = cluster_id
-            self.cells = {Cell(cell_id) for cell_id in cell_ids}
+            self.cells = {warehouse.get_cell_by_id(cell_id) for cell_id in cell_ids}
             self._product_counts = {}
             self._fill_ratios = {}
             self._centroid = None
@@ -160,18 +155,18 @@ class Clusterizer:
         cells_df['cluster'] = clustering.labels_
 
         self.clusters = {
-            self.Cluster(cluster_id, group['cell_id'].tolist())
+            self.Cluster(self.warehouse, cluster_id, group['cell_id'].tolist())
             for cluster_id, group in cells_df.groupby('cluster')
             if cluster_id != -1
         }
 
         self.clusters |= {
-            self.Cluster(cluster_id, group['cell_id'].tolist())
+            self.Cluster(self.warehouse, cluster_id, group['cell_id'].tolist())
             for cluster_id, group in cells_df.groupby('cluster')
             if cluster_id == -1  # -1 означает "шум" в DBSCAN
         }
 
-    async def get_clusters(self) -> set[Clusters]:
+    async def get_clusters(self) -> set[Cluster]:
         if self.clusters is None or not self.__is_updated:
             await self.clusterize()
             self.__is_updated = True

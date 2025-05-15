@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 
 from utils import run_async_thread
-from clusterizer.Clusterizer.Cluster import Cell
+from src.server.models.cell import Cell
 from clusterizer import Clusterizer
 
 
@@ -16,6 +16,9 @@ class SizeType(Enum):
     MEDIUM = 3
     LARGE = 4
     EXTRA_LARGE = 5
+
+
+__executor = ThreadPoolExecutor(max_workers=256)
 
 
 class Algorithm:
@@ -86,7 +89,6 @@ class Algorithm:
         self.outbox_container = list()
 
         self._stop_event = threading.Event()
-        self.__executor = ThreadPoolExecutor(max_workers=256)
         self._async_task = asyncio.create_task(self.check_flags())
 
     def __del__(self):
@@ -196,23 +198,23 @@ class Algorithm:
                 self.requests_in_wait[ProductWrapper(product, None)] -= count
                 self.requests_in_process[ProductWrapper(product, None)] += count
 
-    @run_async_thread(self.__executor)
+    @run_async_thread(__executor)
     def choose_clusters(self, request: SelectionRequest) -> set[Cluster]:
         result = set()
 
         for product in request:
             count = request[product]
 
-            for cluster in self.clusters_controller.clusters:
+            for cluster in self.clusters_controller.get_clusters():
                 if cluster.score_for_product(product.sku) > 2 * count:
                     result.add(cluster)
 
         return result
 
-    @run_async_thread(self.__executor)
-    def choose_cells(self, clusters: set[Cluster]) -> set[Cell]:
+    @run_async_thread(__executor)
+    def choose_cells(self, request: SelectionRequest, clusters: set[Cluster]) -> set[Cell]:
         pass
 
-    @run_async_thread(self.__executor)
+    @run_async_thread(__executor)
     def build_way(self, cells: set[Cell]) -> list[int]:
         pass
