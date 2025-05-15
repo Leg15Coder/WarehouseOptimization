@@ -98,7 +98,7 @@ async def build_map(warehouse: Warehouse, data: dict) -> None:
 async def solve(warehouse: Warehouse, data=None) -> Optional[dict]:
     request = warehouse.generate_new_request()
     result = warehouse.solve(request)
-    result['selection'] = request.to_json()
+    result['selection'] = request.to_dict_like_json()
     return result
 
 

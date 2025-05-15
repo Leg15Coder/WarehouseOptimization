@@ -1,5 +1,5 @@
 -- Таблица "product" — типы товаров на складе
-CREATE TABLE product (
+CREATE TABLE IF NOT EXISTS product (
     sku SERIAL PRIMARY KEY, -- Артикул товара
     name VARCHAR NOT NULL, -- Название товара
     time_to_select FLOAT NOT NULL, -- Среднее время на отбор из ячейки (в секундах)
@@ -9,14 +9,14 @@ CREATE TABLE product (
 );
 
 -- Таблица "zone" — зоны хранения
-CREATE TABLE zone (
+CREATE TABLE IF NOT EXISTS zone (
     zone_id SERIAL PRIMARY KEY,
     zone_name VARCHAR NOT NULL, -- Название зоны
     zone_type VARCHAR -- Тип зоны (например, "стеллаж", "полка", "паллет")
 );
 
 -- Таблица "cell" — ячейки хранения на складе
-CREATE TABLE cell (
+CREATE TABLE IF NOT EXISTS cell (
     cell_id SERIAL PRIMARY KEY,
     x INTEGER NOT NULL, -- Координата X
     y INTEGER NOT NULL, -- Координата Y
@@ -26,7 +26,7 @@ CREATE TABLE cell (
 );
 
 -- Таблица "user" — пользователи
-CREATE TABLE "user" (
+CREATE TABLE IF NOT EXISTS "user" (
     user_id SERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
     surname VARCHAR NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE "user" (
 );
 
 -- Таблица "user_x_zone" — зоны, которые может посещать данный пользователь (многие ко многим)
-CREATE TABLE user_x_zone (
+CREATE TABLE IF NOT EXISTS user_x_zone (
     user_id INTEGER REFERENCES "user"(user_id),
     zone_id INTEGER REFERENCES zone(zone_id),
     PRIMARY KEY (user_id, zone_id)
