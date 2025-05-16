@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 
+from src.algorithm.genetic import GeneticAlgorithm
 from utils import run_async_thread
 from src.server.models.cell import Cell
 from clusterizer import Clusterizer
@@ -75,7 +76,6 @@ class Algorithm:
     async_locker: asyncio.Lock = asyncio.Lock()
     _stop_event: threading.Event
     __threads: list[threading.Thread] = list()
-    __executor: ThreadPoolExecutor
     _async_task: asyncio.Task
 
     def __init__(self):
@@ -213,8 +213,22 @@ class Algorithm:
 
     @run_async_thread(__executor)
     def choose_cells(self, request: SelectionRequest, clusters: set[Cluster]) -> set[Cell]:
-        pass
+        settings = {
+            'population_size': 300,
+            'generations': 1600,
+            'mutation_rate': 0.3
+        }
+
+        sup_cluster = dict()
+        for cluster in clusters:
+            for cell in cluster.cells:
+                sup_cluster[str(cell.cell_id)] = cell
+
+        order = {str(product): count for product, count in request.items()}
+
+        genetic_algorithm = GeneticAlgorithm(sup_cluster)
+        return genetic_algorithm.evolution(order, settings)
 
     @run_async_thread(__executor)
     def build_way(self, cells: set[Cell]) -> list[int]:
-        pass
+        return [cell.cell_id for cell in cells]

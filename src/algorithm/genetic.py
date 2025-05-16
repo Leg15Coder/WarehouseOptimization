@@ -2,6 +2,7 @@ import random
 import math
 from collections import defaultdict
 from typing import Dict, List, Tuple, Set, Any, Optional
+from src.server.models.cell import Cell
 
 
 class GeneticAlgorithm:
