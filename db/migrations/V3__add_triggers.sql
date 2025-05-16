@@ -2,7 +2,7 @@
 CREATE OR REPLACE FUNCTION clear_sku_when_empty()
     RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.count = 0 THEN
+    IF NEW.count <= 0 THEN
         NEW.product_sku := NULL;
     END IF;
     RETURN NEW;

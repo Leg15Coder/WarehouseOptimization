@@ -1,10 +1,10 @@
 from pandas.io.sql import execute
 from sqlalchemy import Column, Integer, String, Float
 from sqlalchemy.orm import relationship
-from src.parsers.db_parser import db
+from src.server.base import Base
 
 
-class Product(db.base):
+class Product(Base):
     """
     Класс, представляющий продукт на складе.
     """

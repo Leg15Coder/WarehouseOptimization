@@ -36,7 +36,7 @@ async def server_handler(websocket: ServerConnection) -> None:
             try:
                 data['websocket'] = websocket
                 await manager.execute(data)
-                logging.debug(f"Сервер принял сообщение {data}")
+                logging.info(f"Сервер принял сообщение {data}")
             except Exception as e:
                 logging.warn(f"Ошибка обработки на стороне сервера {e}")
                 response = {

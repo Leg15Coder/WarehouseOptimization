@@ -3,23 +3,19 @@ from asyncio import PriorityQueue
 import threading
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
-from enum import Enum
+from typing import Optional
 
 from src.algorithm.genetic import GeneticAlgorithm
-from utils import run_async_thread
-from src.server.models.cell import Cell
-from clusterizer import Clusterizer
+from src.algorithm.utils import run_async_thread
+from src.models.cell import Cell
+from src.models.warehouse_on_db import Warehouse
+from src.models.selection_request import SelectionRequest
+from src.models.product import Product
+from src.algorithm.clusterizer import Clusterizer, Cluster
+from src.algorithm.size_enum import SizeType
 
 
-class SizeType(Enum):
-    TINY = 1
-    SMALL = 2
-    MEDIUM = 3
-    LARGE = 4
-    EXTRA_LARGE = 5
-
-
-__executor = ThreadPoolExecutor(max_workers=256)
+executor__ = ThreadPoolExecutor(max_workers=256)
 
 
 class Algorithm:
@@ -79,9 +75,8 @@ class Algorithm:
     _async_task: asyncio.Task
 
     def __init__(self):
-        self.warehouse = Warehouse()
+        self.warehouse = Warehouse(self)
         self.clusters_controller = Clusterizer(self.warehouse)
-        self.size_type = self.clusters_controller.analyze()
 
         self.requests_queue = PriorityQueue()
         self.requests_in_wait = dict()
@@ -89,7 +84,11 @@ class Algorithm:
         self.outbox_container = list()
 
         self._stop_event = threading.Event()
+        self.start()
+
+    async def start(self):
         self._async_task = asyncio.create_task(self.check_flags())
+        self.size_type = await self.clusters_controller.analyze()
 
     def __del__(self):
         self._stop_event.set()
@@ -97,7 +96,7 @@ class Algorithm:
         if hasattr(self, '_async_task'):
             self._async_task.cancel()
 
-        self.__executor.shutdown(wait=False)
+        executor__.shutdown(wait=False)
 
         for thread in self.__threads:
             if thread.is_alive():
@@ -171,24 +170,27 @@ class Algorithm:
         thread.start()
 
     async def run_algorithm(self):
-        clusters = None
+        clusters, request = None, None
         if self.deadline_flag:
             async with self.thread_locker, self.async_locker:
                 await self.add_to_process(self.deadline_flag.request)
+                request = self.deadline_flag.request
                 clusters = await self.choose_clusters(self.deadline_flag.request)
 
         elif self.full_stack_flag:
             async with self.thread_locker, self.async_locker:
                 await self.add_to_process(self.full_stack_flag.request)
+                request = self.full_stack_flag.request
                 clusters = await self.choose_clusters(self.full_stack_flag.request)
 
         elif self.one_product_left_flag:
             async with self.thread_locker, self.async_locker:
                 await self.add_to_process(self.one_product_left_flag.request)
+                request = self.one_product_left_flag.request
                 clusters = await self.choose_clusters(self.one_product_left_flag.request)
 
         if clusters:
-            cells = await self.choose_cells(clusters)
+            cells = await self.choose_cells(request, clusters)
             self.outbox_container.append(await self.build_way(cells))
 
     async def add_to_process(self, request: SelectionRequest) -> None:
@@ -198,7 +200,7 @@ class Algorithm:
                 self.requests_in_wait[ProductWrapper(product, None)] -= count
                 self.requests_in_process[ProductWrapper(product, None)] += count
 
-    @run_async_thread(__executor)
+    @run_async_thread(executor__)
     def choose_clusters(self, request: SelectionRequest) -> set[Cluster]:
         result = set()
 
@@ -211,7 +213,7 @@ class Algorithm:
 
         return result
 
-    @run_async_thread(__executor)
+    @run_async_thread(executor__)
     def choose_cells(self, request: SelectionRequest, clusters: set[Cluster]) -> set[Cell]:
         settings = {
             'population_size': 300,
@@ -229,6 +231,6 @@ class Algorithm:
         genetic_algorithm = GeneticAlgorithm(sup_cluster)
         return genetic_algorithm.evolution(order, settings)
 
-    @run_async_thread(__executor)
+    @run_async_thread(executor__)
     def build_way(self, cells: set[Cell]) -> list[int]:
         return [cell.cell_id for cell in cells]

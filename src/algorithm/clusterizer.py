@@ -3,9 +3,10 @@ import pandas as pd
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import LabelEncoder
 
-from src.algorithm.app import SizeType
-from src.server.models.cell import Cell
-from src.server.models.warehouse_on_db import Warehouse
+from src.algorithm.size_enum import SizeType
+from src.models.cell import Cell
+from src.models.warehouse_on_db import Warehouse
+from src.models.product import Product
 from src.parsers.db_parser import db
 
 
@@ -174,3 +175,6 @@ class Clusterizer:
 
         self.__is_updated = False
         return self.clusters
+
+
+Cluster = Clusterizer.Cluster

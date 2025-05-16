@@ -1,9 +1,9 @@
-from sqlalchemy import Column, Integer
+from sqlalchemy import Column, Integer, ForeignKey
 from sqlalchemy.orm import relationship
-from src.parsers.db_parser import db
+from src.server.base import Base
 
 
-class Cell(db.base):
+class Cell(Base):
     __tablename__ = 'cell'
 
     cell_id = Column(Integer, primary_key=True)

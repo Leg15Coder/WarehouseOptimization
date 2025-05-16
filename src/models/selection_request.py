@@ -27,7 +27,7 @@ class SelectionRequest(object):
         self.data = dict()  # Словарь для хранения продуктов и их количества.
         self.add_products_from_list(args)
 
-    def __ior__(self, other: SelectionRequest):
+    def __ior__(self, other):
         for product, count in other.items():
             if product in self.data:
                 self.data[product] += count
@@ -35,25 +35,25 @@ class SelectionRequest(object):
                 self.data[product] = count
         return self
 
-    def __or__(self, other: SelectionRequest):
+    def __or__(self, other):
         data = self.data.copy()
         for product, count in other.items():
             if product in data:
                 data[product] += count
             else:
                 data[product] = count
-        return SelectionRequest(*(key, data[key]) for key in data)
+        return SelectionRequest(*((key, data[key]) for key in data))
 
-    def __sub__(self, other: SelectionRequest):
+    def __sub__(self, other):
         data = self.data.copy()
         for product, count in other.items():
             if product in data:
                 data[product] -= count
                 if data[product] <= 0:
                     del data[product]
-        return SelectionRequest(*(key, data[key]) for key in data)
+        return SelectionRequest(*((key, data[key]) for key in data))
 
-    def __isub__(self, other: SelectionRequest):
+    def __isub__(self, other):
         for product, count in other.items():
             if product in self.data:
                 self.data[product] -= count

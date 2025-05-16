@@ -2,10 +2,9 @@ import logging
 import random
 from sqlalchemy.exc import SQLAlchemyError
 from collections.abc import Mapping
-from typing import Optional, override
+from typing import Optional
 
-from src.exceptions.warehouse_exceptions import FireTooManyWorkersException, EmptyCellException, WarehouseException
-from src.models.interfaces.abstract_warehouse import AbstractWarehouse
+from src.exceptions.warehouse_exceptions import FireTooManyWorkersException, EmptyCellException, WarehouseException, EmptyListOfProductsException
 from src.models.product import Product
 from src.models.cell import Cell
 from src.models.zone import Zone
@@ -15,9 +14,10 @@ from src.parsers.db_parser import db
 
 
 class Warehouse:
-    def __init__(self):
+    def __init__(self, solver):
         logging.debug("Инициализация модели склада")
         self.session = db.session
+        self.solver = solver
 
         self.size = (0, 0)
         self.start_cords = (0, 0)
@@ -153,26 +153,25 @@ class Warehouse:
         Raises:
             EmptyCellException: Если на складе нет ячеек.
         """
-        cells = self.get_all_cells()
         logging.debug("Заполнение склада товарами")
+        cells = self.get_all_cells()
         if not all(self.size) or not cells:
             logging.error("Ошибка при заполнении склада")
             raise EmptyCellException("На складе нет ни одной ячейки")
 
         products = self.get_all_products()
+        if not products:
+            raise EmptyListOfProductsException("В базе данных нет ни одного продукта для создания запроса")
 
         for cell in cells:
             cell_id, x, y = cell.cell_id, cell.x, cell.y
 
             if self.PROBABILITY_OF_FILLING_CELL >= random.random():
-                if self.is_empty_cell((x, y)):
-                    product_sku = random.choice(products)
-                    count = random.randint(1, self.MAX_COUNT_TO_ADD_ON_EMPTY_CELL)
-                else:
-                    product_sku = self.get_type_of_product_on_cell((x, y))
-                    count = random.randint(1, self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL)
-
+                product_sku = random.choice(products)
+                count = random.randint(1, self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL)
                 self.add_product_to_cell(cell_id, count, product_sku)
+
+        logging.debug("Склад успешно заполнен")
 
     def build(self, layout: list[list[bool]]) -> None:
         """
@@ -191,7 +190,7 @@ class Warehouse:
         self.size = (len(layout), len(layout[0]))
         logging.info("Построение модели склада по заданным параметрам")
 
-        with self.session as session:
+        with self.session() as session:
             try:
                 # Удаление всех существующих ячеек
                 session.query(Cell).delete()
@@ -244,5 +243,5 @@ class Warehouse:
             raise WrongTypeOfCellException("Даннам координатам соответствует ячейка склада, поэтому невозможно "
                                            "установить начальную позицию")
 
-    def solve(self, request: SelectionRequest) -> Optional[dict]:
-        logging.error("Отсутствует реализация алгоритма TSP")
+    async def solve(self, request: SelectionRequest) -> Optional[dict]:
+        return await self.solver.solve(request)

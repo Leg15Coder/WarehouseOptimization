@@ -2,10 +2,11 @@ import os
 from subprocess import run
 import logging
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base, scoped_session
+from sqlalchemy.orm import sessionmaker, scoped_session
 import shutil
 from datetime import datetime
 
+from src.server.base import Base
 from src.parsers.config_parser import config
 
 
@@ -30,9 +31,9 @@ class Database(object):
             port = config.dbport.get_secret_value()
             url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
 
-            self.engine = create_engine(url)
+            self.engine = create_engine(url, future=True)
             self.session = scoped_session(sessionmaker(bind=self.engine))
-            self.base = declarative_base()
+            self.base = Base
             logging.debug("БД успешно подключена")
         except OperationalError | OSError as e:
             logging.error(f"Не удалось подключиться к БД: {e}")
@@ -66,9 +67,9 @@ class Database(object):
 
         with self.engine.connect() as connection:
             for f in names:
-                with open(rf'db/migrations/{f}', 'r') as file:
-                    logging.debug(f"Проверка по {f}")
-                    connection.execute(file.read())
+                with open(rf'db/migrations/{f}', 'r', encoding='utf-8') as file:
+                    logging.debug(f"Выполнение миграции из {f}")
+                    connection.exec_driver_sql(file.read())
         logging.debug("Проверка выполнена успешно")
 
 

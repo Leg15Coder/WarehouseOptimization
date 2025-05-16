@@ -1,3 +1,6 @@
+from pydantic import BaseSettings, SecretStr
+
+
 class Settings(BaseSettings):
     dbname: SecretStr
     dbuser: SecretStr

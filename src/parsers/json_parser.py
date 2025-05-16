@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Optional
 
+from src.algorithm.app import Algorithm
 from src.exceptions.json_parser_exceptions import ExecutionError
 from src.models.warehouse_on_db import Warehouse
 
@@ -20,7 +21,7 @@ class ParserManager(object):
         Инициализирует объект ParserManager, создавая склад и определяя список поддерживаемых команд.
         """
         logging.debug("Инициализация парсера данных формата JSON")
-        self.warehouse = Warehouse()
+        self.warehouse = Warehouse(Algorithm())
         self.namespase = {
             "solve": solve,
             "warehouse_map": build_map,
@@ -97,7 +98,7 @@ async def build_map(warehouse: Warehouse, data: dict) -> None:
 
 async def solve(warehouse: Warehouse, data=None) -> Optional[dict]:
     request = warehouse.generate_new_request()
-    result = warehouse.solve(request)
+    result = await warehouse.solve(request)
     result['selection'] = request.to_dict_like_json()
     return result
 
