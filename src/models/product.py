@@ -1,31 +1,25 @@
 from pandas.io.sql import execute
+from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy.orm import relationship
+from src.parsers.db_parser import db
 
 
-class Product(object):
+class Product(db.base):
     """
     Класс, представляющий продукт на складе.
     """
+    __tablename__ = 'product'
 
-    def __init__(self, sku: int, time_to_select: float, time_to_ship: float, max_amount: int = 1, product_type=None, **kwargs):
-        """
-        Инициализирует объект продукта.
+    sku = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    time_to_select = Column(Float, nullable=False)
+    time_to_ship = Column(Float, nullable=False)
+    max_amount = Column(Integer)
+    product_type = Column(String)
 
-        Args:
-            sku (int): Уникальный идентификатор товара (артикул).
-            time_to_select (float): Время на выбор товара.
-            time_to_ship (float): Время на отгрузку товара.
-            max_amount (int): Максимальное количество данного товара в одной ячейке.
-            product_type (Optional[str]): Категория товара.
-            **kwargs: Дополнительные параметры продукта.
-        """
-        self.sku = sku
-        self.time_to_select = time_to_select
-        self.time_to_ship = time_to_ship
-        self.limits = dict(kwargs)
-        self.max_amount = max_amount
-        self.product_type = product_type
+    cells = relationship('Cell', back_populates='product')
 
-    def check_limits(self) -> None:
+    def check_limits(self) -> bool:
         """
         Проверяет, соблюдаются ли ограничения товара.
 

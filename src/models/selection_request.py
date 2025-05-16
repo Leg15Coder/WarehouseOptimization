@@ -27,6 +27,46 @@ class SelectionRequest(object):
         self.data = dict()  # Словарь для хранения продуктов и их количества.
         self.add_products_from_list(args)
 
+    def __ior__(self, other: SelectionRequest):
+        for product, count in other.items():
+            if product in self.data:
+                self.data[product] += count
+            else:
+                self.data[product] = count
+        return self
+
+    def __or__(self, other: SelectionRequest):
+        data = self.data.copy()
+        for product, count in other.items():
+            if product in data:
+                data[product] += count
+            else:
+                data[product] = count
+        return SelectionRequest(*(key, data[key]) for key in data)
+
+    def __sub__(self, other: SelectionRequest):
+        data = self.data.copy()
+        for product, count in other.items():
+            if product in data:
+                data[product] -= count
+                if data[product] <= 0:
+                    del data[product]
+        return SelectionRequest(*(key, data[key]) for key in data)
+
+    def __isub__(self, other: SelectionRequest):
+        for product, count in other.items():
+            if product in self.data:
+                self.data[product] -= count
+                if self.data[product] <= 0:
+                    del self.data[product]
+        return self
+
+    def __iter__(self):
+        return self.data
+
+    def __bool__(self):
+        return bool(self.data)
+
     def add_products_from_list(self, products: Iterable) -> None:
         """
         Добавляет продукты в запрос из списка кортежей.
@@ -72,5 +112,8 @@ class SelectionRequest(object):
         """
         return tuple((key, self.data[key]) for key in self.data)
 
-    def to_json(self) -> dict:
+    def to_dict_like_json(self) -> dict:
         return {'request': {key.sku: self.data[key] for key in self.data}}
+
+    def items(self):
+        return self.data.items()
