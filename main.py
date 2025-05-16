@@ -13,7 +13,7 @@ from src.server.server import server_handler
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
+        s.connect(("192.168.0.255", 80))
         local_ip = s.getsockname()[0]
         s.close()
         return local_ip

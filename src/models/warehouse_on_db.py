@@ -4,7 +4,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from collections.abc import Mapping
 from typing import Optional
 
-from src.exceptions.warehouse_exceptions import FireTooManyWorkersException, EmptyCellException, WarehouseException, EmptyListOfProductsException
+from src.exceptions.warehouse_exceptions import (FireTooManyWorkersException, EmptyCellException, WarehouseException,
+                                                 EmptyListOfProductsException)
 from src.models.product import Product
 from src.models.cell import Cell
 from src.models.zone import Zone

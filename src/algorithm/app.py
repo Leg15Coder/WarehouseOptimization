@@ -106,12 +106,8 @@ class Algorithm:
         async with self.thread_locker, self.async_locker:
             await self.requests_queue.put(request)
 
-            for product in request:
-                count = request[product]
-                if product in self.requests_in_wait:
-                    self.requests_in_wait[product] += count
-                else:
-                    self.requests_in_wait[product] = count
+            for product, count in request.items():
+                self.requests_in_wait[product] = self.requests_in_wait.get(product, 0) + count
 
             if bool(self.outbox_container):
                 self.outbox_container.clear()
@@ -204,9 +200,7 @@ class Algorithm:
     def choose_clusters(self, request: SelectionRequest) -> set[Cluster]:
         result = set()
 
-        for product in request:
-            count = request[product]
-
+        for product, count in request.items():
             for cluster in self.clusters_controller.get_clusters():
                 if cluster.score_for_product(product.sku) > 2 * count:
                     result.add(cluster)
@@ -221,12 +215,16 @@ class Algorithm:
             'mutation_rate': 0.3
         }
 
-        sup_cluster = dict()
-        for cluster in clusters:
-            for cell in cluster.cells:
-                sup_cluster[str(cell.cell_id)] = cell
+        sup_cluster = {
+            str(cell.cell_id): cell
+            for cluster in clusters
+            for cell in cluster.cells
+        }
 
-        order = {str(product): count for product, count in request.items()}
+        order = {
+            str(product): count
+            for product, count in request.items()
+        }
 
         genetic_algorithm = GeneticAlgorithm(sup_cluster)
         return genetic_algorithm.evolution(order, settings)

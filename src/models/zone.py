@@ -18,4 +18,3 @@ class Zone(Base):
 
     cells = relationship('Cell', back_populates='zone')
     users = relationship('User', secondary=user_x_zone, back_populates='zones')
-
