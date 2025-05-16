@@ -17,7 +17,7 @@ base_temp = 1.0
 
 class Otjig:
     # Выбирает use точек (включая стартовую) минимузируя длину пути между ними
-    def optimise(self, dots: list[tuple], use: int, iterations=1000):
+    def optimise(self, dots: list[Point], use: int, iterations=1000):
         self.path = dots
         self.use = use
         self.temp = base_temp
@@ -68,3 +68,10 @@ class Otjig:
             self.path[swap1], self.path[swap2] = self.path[swap2], self.path[swap1]
             self.length = new_len
         self.__cool()
+
+
+def adapter(self, cells : set) -> list[int]:
+    dots = [(cell.x, cell.y) for cell in cells]
+    Otjig().optimise(dots, len(dots))
+    ids = [cells[dots.find((cell.x, cell.y))].cell_id for cell in cells]
+    return ids
