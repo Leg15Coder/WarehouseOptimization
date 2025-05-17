@@ -2,14 +2,14 @@ import json
 import logging
 
 from src.algorithm.app import Algorithm
-from src.exceptions.json_parser_exceptions import ExecutionError
+from src.exceptions.parser_exceptions import ExecutionError
 from src.exceptions.warehouse_exceptions import EmptyListOfProductsException, IllegalSizeException
 from src.models.product import Product
 from src.models.warehouse_on_db import Warehouse
 from src.parsers.db_parser import db
 
 
-class ParserManager(object):
+class ParserManager:
     """
     Класс для управления парсингом входящих команд и их выполнения на складе.
 
@@ -32,6 +32,7 @@ class ParserManager(object):
             "list_product_types": product_list,
             "worker_free_report": do_nothing,
             "update_warehouse": do_nothing,
+            "run": solve
         }
 
     def __call__(self, *args, **kwargs):
@@ -46,25 +47,18 @@ class ParserManager(object):
         args = list(args)
         if not args or args[0] in self.namespase:
             item = args[0]  # Тип команды
-            args[0] = self.warehouse  # Добавление объекта склада в качестве первого аргумента
+            args = args[1:]
             return self.namespase[item](*args, **kwargs)
         else:
             raise KeyError("Неизвестный протокол обмена")
 
     def __getitem__(self, item: str):
-        """
-        Возвращает функцию, соответствующую указанному типу команды.
-
-        :param item: Тип команды.
-        :return: Функция из `namespase`.
-        :raises KeyError: Если команда неизвестна.
-        """
         if item in self.namespase:
             logging.debug(f"Запрос на выполнение задачи {self.namespase[item]}")
             return self.namespase[item]
         else:
             logging.warn("Неизвестный протокол обмена на уровне парсера")
-            raise KeyError("Неизвестный протокол обмена")
+            return undefined_function
 
     def execute(self, data: dict) -> None:
         """
@@ -74,6 +68,7 @@ class ParserManager(object):
         :return: Результат выполнения команды.
         :raises ExecutionError: Если данные команды некорректны.
         """
+        data['warehouse'] = self.warehouse
         if not isinstance(data, dict) or 'type' not in data:
             raise ExecutionError("Ошибка обработки команды")
         return self(data['type'], data)
@@ -88,17 +83,21 @@ async def do_nothing(*args, **kwargs) -> dict:
     }
 
 
-async def build_map(warehouse: Warehouse, data: dict) -> dict:
-    """
-    Создаёт карту склада на основе переданных данных.
+async def undefined_function(*args, **kwargs) -> dict:
+    return {
+        "type": "response",
+        "code": 418,
+        "status": "error",
+        "message": "Я не могу заварить вам кофе, потому что я чайник"
+    }
 
-    :param warehouse: Объект склада.
-    :param data: Словарь с данными, содержащий карту склада под ключом `map`.
-    """
+
+async def build_map(data: dict) -> dict:
     try:
         if 'payload' not in data or 'layout' not in data['payload']:
             raise ValueError()
         data = data['payload']
+        warehouse = data['warehouse']
 
         warehouse.build(data["layout"])
 
@@ -146,7 +145,7 @@ async def build_map(warehouse: Warehouse, data: dict) -> dict:
         }
 
 
-async def create_product(warehouse: Warehouse, data: dict) -> dict:
+async def create_product(data: dict) -> dict:
     try:
         if 'payload' not in data:
             raise ValueError()
@@ -154,7 +153,7 @@ async def create_product(warehouse: Warehouse, data: dict) -> dict:
         skus = list()
 
         for product in data['payload']:
-            if 'sku' not in product:
+            if 'sku' not in product or not isinstance(product['sku'], int):
                 raise ValueError()
             sku = product['sku']
             name = product['name'] if 'name' in product else f'PRODUCT{sku}'
@@ -195,15 +194,17 @@ async def create_product(warehouse: Warehouse, data: dict) -> dict:
         }
 
 
-async def delete_product(warehouse: Warehouse, data: dict) -> dict:
+async def delete_product(data: dict) -> dict:
     try:
         if 'payload' not in data:
             raise ValueError()
         data = data['payload']
         skus = list()
 
-        for product in data['payload']:
-            if 'sku' not in product:
+        if 'skus' not in data['payload']:
+            raise ValueError()
+        for sku in skus:
+            if not isinstance(sku, int):
                 raise ValueError()
             sku = product['sku']
 
@@ -230,7 +231,7 @@ async def delete_product(warehouse: Warehouse, data: dict) -> dict:
         }
 
 
-async def product_list(warehouse: Warehouse, data: dict) -> dict:
+async def product_list(data: dict) -> dict:
     products = db.session.query(Product).all()
     products = list(map(lambda x: x.__dict__, products))
     return {
@@ -241,4 +242,17 @@ async def product_list(warehouse: Warehouse, data: dict) -> dict:
         "data": {
             products
         }
+    }
+
+
+async def solve(data: dict) -> dict:
+    warehouse = data['warehouse']
+    request = warehouse.generate_new_request()
+    return {
+      "type": "response",
+      "code": 103,
+      "status": "ok",
+      "data": {
+          "result": warehouse.solve(request)
+      }
     }

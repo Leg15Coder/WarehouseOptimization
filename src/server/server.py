@@ -8,7 +8,7 @@ from websockets.asyncio.server import ServerConnection
 from websockets.exceptions import ConnectionClosed
 
 from src.parsers.json_parser import ParserManager
-from src.exceptions.json_parser_exceptions import ExecutionError
+from src.exceptions.parser_exceptions import ExecutionError
 from src.parsers.config_parser import config
 
 # Хранение подключённых клиентов
@@ -26,7 +26,7 @@ async def server_handler(websocket: ServerConnection) -> None:
     connected_clients.add(websocket)  # Добавляем клиента в список подключённых
     logging.info(f"Клиент {websocket.id} подключился")
     # Запуск фоновой задачи для отправки статуса сервера клиенту
-    # asyncio.create_task(send_server_status(websocket))
+    asyncio.create_task(send_server_status(websocket))
 
     try:
         # Чтение сообщений от клиента
@@ -80,7 +80,7 @@ async def server_handler(websocket: ServerConnection) -> None:
         connected_clients.remove(websocket)
 
 
-async def send_server_status(websocket: ServerConnection) -> None:
+async def send_request(websocket: ServerConnection) -> None:
     """
     Периодически отправляет клиенту обновлённое состояние сервера.
 
@@ -89,19 +89,24 @@ async def send_server_status(websocket: ServerConnection) -> None:
     while True:
         try:
             # Выполнение запроса для получения данных сервера
-            data = await manager.execute({"type": "solve"})
+            data = await manager.execute({"type": "run"})
 
-            if data is None:
-                await asyncio.sleep(0.1)
+            if data is None or not data:
+                break  # todo later
+                await asyncio.sleep(1)
                 continue
 
             # Формирование и отправка сообщения клиенту
             message = {
-                "type": "server_update",
-                "body": data
+                "type": "request",
+                "message": "Неофициальный результат тестирования",
+                "data": {
+                    "worker_id": "UNDEFINED",
+                    "moving_cells": [data],
+                }
             }
             await websocket.send(json.dumps(message))
-            logging.debug(f"Сервер отправил сообщение {message}")
+            logging.debug(f"Сервер отправил сообщение клиенту {websocket.id}")
 
         except ConnectionClosed:
             logging.info(f"Клиент {websocket.id} отключился")
@@ -109,4 +114,5 @@ async def send_server_status(websocket: ServerConnection) -> None:
         except Exception as e:
             # Логирование ошибок при отправке сообщения
             logging.error(f"Ошибка при отправке сообщения: {e}")
-        await asyncio.sleep(0.5)
+        finally:
+            await asyncio.sleep(0.5)

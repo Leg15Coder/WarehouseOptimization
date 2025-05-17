@@ -5,7 +5,8 @@ from collections.abc import Mapping
 from typing import Optional
 
 from src.exceptions.warehouse_exceptions import (FireTooManyWorkersException, EmptyCellException, WarehouseException,
-                                                 EmptyListOfProductsException)
+                                                 EmptyListOfProductsException, WrongTypeOfCellException,
+                                                 IncompleteMapException)
 from src.models.product import Product
 from src.models.cell import Cell
 from src.models.zone import Zone
@@ -170,7 +171,7 @@ class Warehouse:
 
         products = self.get_all_products()
         if not products:
-            logging.error("Ошибка при заполнении склада")
+            logging.warn("Ошибка при заполнении склада")
             raise EmptyListOfProductsException("В базе данных нет ни одного продукта для создания запроса")
 
         for cell in cells:
@@ -195,7 +196,7 @@ class Warehouse:
             IncompleteMapException: Если карта не имеет прямоугольной формы.
         """
         if not len(layout) or not len(layout[0]):
-            logging.error("Невозможно построить склад по заданным параметрам")
+            logging.warn("Невозможно построить склад по заданным параметрам")
             raise IllegalSizeException("Нельзя создать склад с нулём ячеек")
         self.size = (len(layout), len(layout[0]))
         logging.info("Построение модели склада по заданным параметрам")
