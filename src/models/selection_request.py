@@ -29,19 +29,13 @@ class SelectionRequest(object):
 
     def __ior__(self, other):
         for product, count in other.items():
-            if product in self.data:
-                self.data[product] += count
-            else:
-                self.data[product] = count
+            self.data[product] = self.data.get(product, 0) + count
         return self
 
     def __or__(self, other):
         data = self.data.copy()
         for product, count in other.items():
-            if product in data:
-                data[product] += count
-            else:
-                data[product] = count
+            self.data[product] = self.data.get(product, 0) + count
         return SelectionRequest(*((key, data[key]) for key in data))
 
     def __sub__(self, other):
@@ -66,6 +60,9 @@ class SelectionRequest(object):
 
     def __bool__(self):
         return bool(self.data)
+
+    def __str__(self):
+        return str(self.data)
 
     def add_products_from_list(self, products: Iterable) -> None:
         """

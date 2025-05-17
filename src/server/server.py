@@ -7,14 +7,12 @@ import random
 from websockets.asyncio.server import ServerConnection
 from websockets.exceptions import ConnectionClosed
 
-from src.parsers.json_parser import ParserManager
+from src.parsers.json_parser import manager
 from src.exceptions.parser_exceptions import ExecutionError
 from src.parsers.config_parser import config
 
 # Хранение подключённых клиентов
 connected_clients = set()
-# Инициализация менеджера для обработки JSON-запросов
-manager = ParserManager()
 
 
 async def server_handler(websocket: ServerConnection) -> None:
@@ -26,14 +24,14 @@ async def server_handler(websocket: ServerConnection) -> None:
     connected_clients.add(websocket)  # Добавляем клиента в список подключённых
     logging.info(f"Клиент {websocket.id} подключился")
     # Запуск фоновой задачи для отправки статуса сервера клиенту
-    asyncio.create_task(send_server_status(websocket))
+    asyncio.create_task(send_request(websocket))
 
     try:
         # Чтение сообщений от клиента
         async for message in websocket:
             # Парсинг JSON-сообщения
             data = json.loads(message)
-            logging.info(f"Сервер принял сообщение {data}")
+            logging.info(f"Сервер принял сообщение")
 
             if 'auth' not in data or data['auth'] != config.wsauth.get_secret_value():
                 await websocket.send(json.dumps(
@@ -58,7 +56,9 @@ async def server_handler(websocket: ServerConnection) -> None:
                     continue
 
                 data['websocket'] = websocket
-                await websocket.send(json.dumps(await manager.execute(data)))
+                response = await manager.execute(data)
+                if response is not None:
+                    await websocket.send(json.dumps(response))
                 logging.debug("Сервер ответил")
             except Exception as e:
                 logging.error(f"Ошибка обработки на стороне сервера {e}")
@@ -92,7 +92,6 @@ async def send_request(websocket: ServerConnection) -> None:
             data = await manager.execute({"type": "run"})
 
             if data is None or not data:
-                break  # todo later
                 await asyncio.sleep(1)
                 continue
 

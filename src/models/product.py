@@ -16,6 +16,7 @@ class Product(Base):
     time_to_ship = Column(Float, nullable=False)
     max_amount = Column(Integer)
     product_type = Column(String)
+    max_per_hand = 10
 
     cells = relationship('Cell', back_populates='product')
 
@@ -39,12 +40,3 @@ class Product(Base):
             str: Артикул продукта.
         """
         return str(self.sku)
-
-    def __repr__(self):
-        """
-        Возвращает строковое представление товара для целей отладки.
-
-        Returns:
-            str: Артикул продукта.
-        """
-        return self.__str__()

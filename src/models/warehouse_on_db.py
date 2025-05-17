@@ -31,6 +31,13 @@ class Warehouse:
         self.MAX_COUNT_TO_ADD_ON_EMPTY_CELL = 64
         self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL = 16
         self.workers = 1
+        self.free_workers = set(range(1, self.workers + 1))
+
+    def width(self) -> int:
+        return self.size[0]
+
+    def height(self) -> int:
+        return self.size[1]
 
     def get_all_cells(self) -> list[Cell]:
         return self.session.query(Cell).all()
@@ -103,6 +110,8 @@ class Warehouse:
         if count <= 0:
             raise ValueError("Невозможно установить отрицательное количество работников.")
 
+        self.free_workers -= self.free_workers - set(range(count + 1, self.workers + 1))
+        self.free_workers = self.free_workers | set(range(self.workers + 1, count + 1))
         self.workers = count
         logging.debug(f"Изменено количество работников склада до {self.workers}")
         return self.workers
@@ -129,6 +138,13 @@ class Warehouse:
             raise FireTooManyWorkersException("Нельзя распустить больше работников, чем имеется")
 
         return self.set_workers(self.workers - count)
+
+    def relieve_worker(self, worker_id: int) -> None:
+        if worker_id <= self.workers:
+            self.free_workers.add(worker_id)
+
+    def call_worker(self, worker_id: int) -> None:
+        self.free_workers.remove(worker_id)
 
     def generate_new_request(self) -> SelectionRequest:
         """
@@ -178,9 +194,9 @@ class Warehouse:
             cell_id, x, y = cell.cell_id, cell.x, cell.y
 
             if self.PROBABILITY_OF_FILLING_CELL >= random.random():
-                product_sku = random.choice(products)
+                product = random.choice(products)
                 count = random.randint(1, self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL)
-                self.add_product_to_cell(cell_id, count, product_sku)
+                self.add_product_to_cell(cell_id, count, product.sku)
 
         logging.debug("Склад успешно заполнен")
 
@@ -250,6 +266,9 @@ class Warehouse:
             logging.warn("Ошибка при попытке установить новую стартовую точку склада")
             raise WrongTypeOfCellException("Даннам координатам соответствует ячейка склада, поэтому невозможно "
                                            "установить начальную позицию")
+
+    def get_start(self) -> tuple[int, int]:
+        return self.start_cords
 
     async def solve(self, request: SelectionRequest) -> Optional[dict]:
         return await self.solver.solve(request)

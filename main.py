@@ -8,6 +8,7 @@ import src.logging.logger
 from src.models.product import Product
 from src.models.warehouse_on_db import Warehouse
 from src.server.server import server_handler
+from src.parsers.json_parser import manager
 
 
 def get_local_ip():
@@ -26,6 +27,9 @@ async def main():
     server = await websockets.serve(server_handler, "0.0.0.0", 8765)
     local_ip = get_local_ip()
     logging.info(f"Сервер запущен на ws://{local_ip}:8765")
+
+    await manager.warehouse.solver.start()
+    logging.info("Алгоритм инициализирован")
 
     await server.wait_closed()
 

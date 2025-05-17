@@ -1,9 +1,10 @@
 import json
 import logging
+from typing import Optional
 
 from src.algorithm.app import Algorithm
 from src.exceptions.parser_exceptions import ExecutionError
-from src.exceptions.warehouse_exceptions import EmptyListOfProductsException, IllegalSizeException
+from src.exceptions.warehouse_exceptions import EmptyListOfProductsException, IllegalSizeException, IncompleteMapException
 from src.models.product import Product
 from src.models.warehouse_on_db import Warehouse
 from src.parsers.db_parser import db
@@ -15,7 +16,7 @@ class ParserManager:
 
     Атрибуты:
         warehouse (Warehouse): Объект склада, с которым осуществляется взаимодействие.
-        namespase (dict): Словарь функций, соответствующих типам запросов.
+        namespace (dict): Словарь функций, соответствующих типам запросов.
     """
 
     def __init__(self):
@@ -24,7 +25,7 @@ class ParserManager:
         """
         logging.debug("Инициализация парсера данных формата JSON")
         self.warehouse = Warehouse(Algorithm())
-        self.namespase = {
+        self.namespace = {
             "create_warehouse": build_map,
             "server_status": do_nothing,
             "create_product_type": create_product,
@@ -44,18 +45,17 @@ class ParserManager:
         :return: Результат выполнения соответствующей команды.
         :raises KeyError: Если команда неизвестна.
         """
-        args = list(args)
-        if not args or args[0] in self.namespase:
+        if not args:
+            item = 'None'
+        else:
             item = args[0]  # Тип команды
             args = args[1:]
-            return self.namespase[item](*args, **kwargs)
-        else:
-            raise KeyError("Неизвестный протокол обмена")
+        return self[item](*args, **kwargs)
 
     def __getitem__(self, item: str):
-        if item in self.namespase:
-            logging.debug(f"Запрос на выполнение задачи {self.namespase[item]}")
-            return self.namespase[item]
+        if item in self.namespace:
+            logging.debug(f"Запрос на выполнение задачи {self.namespace[item]}")
+            return self.namespace[item]
         else:
             logging.warn("Неизвестный протокол обмена на уровне парсера")
             return undefined_function
@@ -96,9 +96,8 @@ async def build_map(data: dict) -> dict:
     try:
         if 'payload' not in data or 'layout' not in data['payload']:
             raise ValueError()
-        data = data['payload']
         warehouse = data['warehouse']
-
+        data = data['payload']
         warehouse.build(data["layout"])
 
         if 'add_workers' in data:
@@ -129,7 +128,7 @@ async def build_map(data: dict) -> dict:
             "status": "error",
             "message": "Перед созданием склада необходимо создать хранимые товары"
         }
-    except IllegalSizeException:
+    except (IllegalSizeException, IncompleteMapException):
         return {
             "type": "response",
             "code": 400,
@@ -152,10 +151,10 @@ async def create_product(data: dict) -> dict:
         data = data['payload']
         skus = list()
 
-        for product in data['payload']:
-            if 'sku' not in product or not isinstance(product['sku'], int):
-                raise ValueError()
-            sku = product['sku']
+        for product in data:
+            if 'sku' not in product:
+                continue
+            sku = int(product['sku'])
             name = product['name'] if 'name' in product else f'PRODUCT{sku}'
             time_to_select = product['time_to_select'] if 'time_to_select' in product else 1
             time_to_ship = product['time_to_ship'] if 'time_to_ship' in product else 1
@@ -176,6 +175,7 @@ async def create_product(data: dict) -> dict:
                     session.add(product)
                     session.commit()
                     skus.append(sku)
+                    logging.debug(f"Создан новый тип товара: {product}")
                 except SQLAlchemyError:
                     session.rollback()
 
@@ -234,25 +234,49 @@ async def delete_product(data: dict) -> dict:
 async def product_list(data: dict) -> dict:
     products = db.session.query(Product).all()
     products = list(map(lambda x: x.__dict__, products))
+    for product in products:
+        del product['_sa_instance_state']
+
     return {
         "type": "response",
         "code": 200,
         "status": "ok",
         "message": f"Найдено {len(products)} различных типов товаров",
         "data": {
-            products
+            "products": products
         }
     }
 
 
-async def solve(data: dict) -> dict:
+async def relieve_worker(data: dict) -> dict:
+    try:
+        warehouse = data['warehouse']
+        if 'worker_id' not in data:
+            raise ValueError()
+        warehouse.relieve_worker(int(data['worker_id']))
+    except ValueError:
+        return {
+            "type": "response",
+            "code": 400,
+            "status": "error",
+            "message": "Некорректный формат запроса"
+        }
+
+
+async def solve(data: dict) -> Optional[dict]:
     warehouse = data['warehouse']
     request = warehouse.generate_new_request()
-    return {
-      "type": "response",
-      "code": 103,
-      "status": "ok",
-      "data": {
-          "result": warehouse.solve(request)
-      }
-    }
+    result = await warehouse.solve(request)
+    if result:
+        return {
+          "type": "response",
+          "code": 103,
+          "status": "ok",
+          "data": {
+              "result": result
+          }
+        }
+    return None
+
+
+manager = ParserManager()
