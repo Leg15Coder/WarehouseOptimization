@@ -22,6 +22,10 @@ class Warehouse:
 
         self.size = (0, 0)
         self.start_cords = (0, 0)
+
+        self.EMPTY_CELL_RATIO = 0.5
+        self.HEAVILY_FILLED_RATIO = 0.5
+
         self.PROBABILITY_OF_FILLING_CELL = 0.33
         self.MAX_COUNT_TO_ADD_ON_EMPTY_CELL = 64
         self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL = 16
@@ -92,7 +96,13 @@ class Warehouse:
             raise ValueError("Невозможно добавить отрицательное количество работников. Чтобы уволить работников "
                              "используйте Warehouse::remove_workers")
 
-        self.workers += count
+        return self.set_workers(self.workers + count)
+
+    def set_workers(self, count: int) -> int:
+        if count <= 0:
+            raise ValueError("Невозможно установить отрицательное количество работников.")
+
+        self.workers = count
         logging.debug(f"Изменено количество работников склада до {self.workers}")
         return self.workers
 
@@ -117,9 +127,7 @@ class Warehouse:
         if self.workers - count < 0:
             raise FireTooManyWorkersException("Нельзя распустить больше работников, чем имеется")
 
-        self.workers -= count
-        logging.debug(f"Изменено количество работников склада до {self.workers}")
-        return self.workers
+        return self.set_workers(self.workers - count)
 
     def generate_new_request(self) -> SelectionRequest:
         """
@@ -162,6 +170,7 @@ class Warehouse:
 
         products = self.get_all_products()
         if not products:
+            logging.error("Ошибка при заполнении склада")
             raise EmptyListOfProductsException("В базе данных нет ни одного продукта для создания запроса")
 
         for cell in cells:
@@ -214,10 +223,7 @@ class Warehouse:
                 logging.error(f"Ошибка при работе с базой данных: {e}")
                 raise WarehouseException("Не удалось построить склад из-за ошибки базы данных")
 
-        try:
-            self.fill()  # Заполняем склад продуктами
-        except WarehouseException:
-            logging.error("Ошибка при заполнении склада")
+        self.fill()  # Заполняем склад продуктами
 
     def is_empty_cell(self, cell: tuple[int, int]) -> bool:
         x, y = cell

@@ -9,6 +9,7 @@ from websockets.exceptions import ConnectionClosed
 
 from src.parsers.json_parser import ParserManager
 from src.exceptions.json_parser_exceptions import ExecutionError
+from src.parsers.config_parser import config
 
 # Хранение подключённых клиентов
 connected_clients = set()
@@ -32,18 +33,40 @@ async def server_handler(websocket: ServerConnection) -> None:
         async for message in websocket:
             # Парсинг JSON-сообщения
             data = json.loads(message)
+            logging.info(f"Сервер принял сообщение {data}")
+
+            if 'auth' not in data or data['auth'] != config.wsauth.get_secret_value():
+                await websocket.send(json.dumps(
+                    {
+                        "type": "response",
+                        "code": 401,
+                        "status": "error",
+                        "message": "Не авторизован"
+                    }
+                ))
+                continue
 
             try:
+                if 'type' not in data:
+                    await websocket.send(json.dumps(
+                        {
+                            "type": "response",
+                            "code": 100,
+                            "status": "ok"
+                        }
+                    ))
+                    continue
+
                 data['websocket'] = websocket
-                await manager.execute(data)
-                logging.info(f"Сервер принял сообщение {data}")
+                await websocket.send(json.dumps(await manager.execute(data)))
+                logging.debug("Сервер ответил")
             except Exception as e:
-                logging.warn(f"Ошибка обработки на стороне сервера {e}")
+                logging.error(f"Ошибка обработки на стороне сервера {e}")
                 response = {
                     "type": "answer",
-                    "status": "Internal Server Error",
+                    "status": "error",
                     "code": 500,
-                    "message": str(e)
+                    "message": "Фатальная ошибка на стороне сервера"
                 }
                 await websocket.send(json.dumps(response))
 

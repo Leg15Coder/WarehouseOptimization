@@ -1,10 +1,12 @@
 import json
 import logging
-from typing import Optional
 
 from src.algorithm.app import Algorithm
 from src.exceptions.json_parser_exceptions import ExecutionError
+from src.exceptions.warehouse_exceptions import EmptyListOfProductsException, IllegalSizeException
+from src.models.product import Product
 from src.models.warehouse_on_db import Warehouse
+from src.parsers.db_parser import db
 
 
 class ParserManager(object):
@@ -23,12 +25,13 @@ class ParserManager(object):
         logging.debug("Инициализация парсера данных формата JSON")
         self.warehouse = Warehouse(Algorithm())
         self.namespase = {
-            "solve": solve,
-            "warehouse_map": build_map,
-            "answer": do_nothing,
-            "update_map": do_nothing,
-            "update_workers": do_nothing,
-            "get_status": send_current_requests
+            "create_warehouse": build_map,
+            "server_status": do_nothing,
+            "create_product_type": create_product,
+            "delete_product_type": delete_product,
+            "list_product_types": product_list,
+            "worker_free_report": do_nothing,
+            "update_warehouse": do_nothing,
         }
 
     def __call__(self, *args, **kwargs):
@@ -76,39 +79,166 @@ class ParserManager(object):
         return self(data['type'], data)
 
 
-async def do_nothing(*args, **kwargs) -> None:
-    """
-    Функция-заглушка, которая ничего не делает.
+async def do_nothing(*args, **kwargs) -> dict:
+    return {
+        "type": "response",
+        "code": 501,
+        "status": "error",
+        "message": "Не реализовано"
+    }
 
-    :param args: Список аргументов.
-    :param kwargs: Словарь дополнительных параметров.
-    """
-    pass
 
-
-async def build_map(warehouse: Warehouse, data: dict) -> None:
+async def build_map(warehouse: Warehouse, data: dict) -> dict:
     """
     Создаёт карту склада на основе переданных данных.
 
     :param warehouse: Объект склада.
     :param data: Словарь с данными, содержащий карту склада под ключом `map`.
     """
-    warehouse.build(data["map"])
+    try:
+        if 'payload' not in data or 'layout' not in data['payload']:
+            raise ValueError()
+        data = data['payload']
+
+        warehouse.build(data["layout"])
+
+        if 'add_workers' in data:
+            warehouse.add_workers(data['add_workers'])
+        if 'remove_workers' in data:
+            warehouse.remove_workers(data['remove_workers'])
+        if 'workers_count' in data:
+            warehouse.set_workers(data['workers_count'])
+
+        if 'filling_rules' in data:
+            data = data['filling_rules']
+
+            if 'empty_cell_ratio' in data:
+                warehouse.EMPTY_CELL_RATIO = float(data['empty_cell_ratio'])
+            if 'heavily_filled_ratio' in data:
+                warehouse.HEAVILY_FILLED_RATIO = float(data['heavily_filled_ratio'])
+
+        return {
+            "type": "response",
+            "code": 201,
+            "status": "ok",
+            "message": "Склад успешно создан и предзаполнен товарами"
+        }
+    except EmptyListOfProductsException:
+        return {
+            "type": "response",
+            "code": 400,
+            "status": "error",
+            "message": "Перед созданием склада необходимо создать хранимые товары"
+        }
+    except IllegalSizeException:
+        return {
+            "type": "response",
+            "code": 400,
+            "status": "error",
+            "message": "Некорректные размеры склада"
+        }
+    except ValueError:
+        return {
+            "type": "response",
+            "code": 400,
+            "status": "error",
+            "message": "Некорректный формат запроса"
+        }
 
 
-async def solve(warehouse: Warehouse, data=None) -> Optional[dict]:
-    request = warehouse.generate_new_request()
-    result = await warehouse.solve(request)
-    result['selection'] = request.to_dict_like_json()
-    return result
+async def create_product(warehouse: Warehouse, data: dict) -> dict:
+    try:
+        if 'payload' not in data:
+            raise ValueError()
+        data = data['payload']
+        skus = list()
+
+        for product in data['payload']:
+            if 'sku' not in product:
+                raise ValueError()
+            sku = product['sku']
+            name = product['name'] if 'name' in product else f'PRODUCT{sku}'
+            time_to_select = product['time_to_select'] if 'time_to_select' in product else 1
+            time_to_ship = product['time_to_ship'] if 'time_to_ship' in product else 1
+            max_amount = product['max_amount'] if 'max_amount' in product else 64
+            product_type = product['product_type'] if 'product_type' in product else None
+
+            with db.session() as session:
+                try:
+                    product = Product(
+                        sku=sku,
+                        name=name,
+                        time_to_select=time_to_select,
+                        time_to_ship=time_to_ship,
+                        max_amount=max_amount,
+                        product_type=product_type
+                    )
+
+                    session.add(product)
+                    session.commit()
+                    skus.append(sku)
+                except SQLAlchemyError:
+                    session.rollback()
+
+        return {
+            "type": "response",
+            "code": 201,
+            "status": "ok",
+            "message": f"Созданы товары с артикулами {skus}"
+        }
+    except ValueError:
+        return {
+            "type": "response",
+            "code": 400,
+            "status": "error",
+            "message": "Некорректный формат запроса"
+        }
 
 
-async def send_current_requests(warehouse: Warehouse, data: dict) -> None:
-    response = dict()
-    websocket = data['websocket']
-    count = data['requests_count']
-    response['type'] = 'selections'
-    response['body'] = list()
-    for _ in range(count):
-        response['body'].append(await solve(warehouse))
-    await websocket.send(json.dumps(response))
+async def delete_product(warehouse: Warehouse, data: dict) -> dict:
+    try:
+        if 'payload' not in data:
+            raise ValueError()
+        data = data['payload']
+        skus = list()
+
+        for product in data['payload']:
+            if 'sku' not in product:
+                raise ValueError()
+            sku = product['sku']
+
+            with db.session() as session:
+                try:
+                    session.query(Product).filter(Product.sku == sku).delete()
+                    session.commit()
+                    skus.append(sku)
+                except SQLAlchemyError:
+                    session.rollback()
+
+        return {
+            "type": "response",
+            "code": 202,
+            "status": "ok",
+            "message": f"Удалены товары с артикулами {skus}"
+        }
+    except ValueError:
+        return {
+            "type": "response",
+            "code": 400,
+            "status": "error",
+            "message": "Некорректный формат запроса"
+        }
+
+
+async def product_list(warehouse: Warehouse, data: dict) -> dict:
+    products = db.session.query(Product).all()
+    products = list(map(lambda x: x.__dict__, products))
+    return {
+        "type": "response",
+        "code": 200,
+        "status": "ok",
+        "message": f"Найдено {len(products)} различных типов товаров",
+        "data": {
+            products
+        }
+    }
