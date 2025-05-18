@@ -3,9 +3,10 @@ import pandas as pd
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import LabelEncoder
 
-from src.algorithm.app import SizeType
-from src.server.models.cell import Cell
-from src.server.models.warehouse_on_db import Warehouse
+from src.algorithm.size_enum import SizeType
+from src.models.cell import Cell
+from src.models.warehouse_on_db import Warehouse
+from src.models.product import Product
 from src.parsers.db_parser import db
 
 
@@ -73,9 +74,9 @@ class Clusterizer:
         """
 
         # Получаем габариты склада
-        width = self.warehouse.width
-        height = self.warehouse.height
-        num_cells = self.warehouse.total_cell_count  # Общее количество ячеек
+        width = self.warehouse.width()
+        height = self.warehouse.height()
+        num_cells = len(self.warehouse.get_all_cells())  # Общее количество ячеек
 
         area = width * height
         density = num_cells / area if area else 0
@@ -132,8 +133,8 @@ class Clusterizer:
                 WHERE c.count > 0
             """
 
-        async with db.connection as conn:
-            cells_df = await conn.fetch_df(query)    # conn возьму из Database class
+        with db.engine.connect() as conn:
+            cells_df = pd.read_sql(query, conn)    # conn возьму из Database class
 
         if cells_df.empty:
             return  # Сообщить об ошибке
@@ -166,11 +167,14 @@ class Clusterizer:
             if cluster_id == -1  # -1 означает "шум" в DBSCAN
         }
 
-    async def get_clusters(self) -> set[Cluster]:
+    def get_clusters(self) -> set[Cluster]:
         if self.clusters is None or not self.__is_updated:
-            await self.clusterize()
+            # todo await self.clusterize()
             self.__is_updated = True
             return self.clusters
 
         self.__is_updated = False
         return self.clusters
+
+
+Cluster = Clusterizer.Cluster

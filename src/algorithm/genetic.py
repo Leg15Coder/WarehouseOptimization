@@ -2,7 +2,7 @@ import random
 import math
 from collections import defaultdict
 from typing import Dict, List, Tuple, Set, Any, Optional
-from src.server.models.cell import Cell
+from src.models.cell import Cell
 
 
 class GeneticAlgorithm:
@@ -29,7 +29,6 @@ class GeneticAlgorithm:
         temp_avail: Dict[str, int] = {
             cid: cell.count for cid, cell in self.all_cells_data.items()
         }
-
         items = list(current_order.items())
         random.shuffle(items)
 
@@ -120,8 +119,7 @@ class GeneticAlgorithm:
         # Собираем список ячеек по продуктам
         locations: Dict[str, List[str]] = defaultdict(list)
         for cid, cell in self.all_cells_data.items():
-            locations[cell.product].append(cid)
-
+            locations[cell.product.sku].append(cid)
         # Инициализация популяции
         population = [
             self.generate_valid_solution(order, locations)
