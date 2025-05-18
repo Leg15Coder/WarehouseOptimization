@@ -70,8 +70,37 @@ class Otjig:
         self.__cool()
 
 
-def adapter(self, cells : set) -> list[int]:
+def adapter(warehouse, cells : set) -> list[tuple[int, int]]:
     dots = [(cell.x, cell.y) for cell in cells]
     Otjig().optimise(dots, len(dots))
-    ids = [cells[dots.find((cell.x, cell.y))].cell_id for cell in cells]
-    return ids
+    
+    avaliable = set()
+
+    from itertools import product
+    
+    for pos in product(*map(range, warehouse.size)):
+        if warehouse.is_moving_cell(pos):
+            avaliable.add(pos)
+
+    path = [dots[0]]
+    prev = dots[0]
+    for dot in dots[1:]:
+        burned = set()
+        dfs = [prev]
+        while dfs[-1] != dot:
+            burned.add(dfs[-1])
+            cur_x, cur_y = dfs[-1]
+            nxt = filter(
+                lambda pos: pos in avaliable and pos not in burned,
+                [(cur_x + 1, cur_y), (cur_x - 1, cur_y), (cur_x, cur_y + 1), (cur_x, cur_y - 1)]
+            )
+            if nxt:
+                dfs.append(nxt[0])
+            else:
+                dfs.pop()
+        
+        path += dfs[1:]
+        prev = dot
+
+    return path
+
