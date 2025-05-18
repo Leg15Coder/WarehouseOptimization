@@ -230,6 +230,6 @@ class Algorithm:
         return genetic_algorithm.evolution(order, settings)
 
     @run_async_thread(__executor)
-    def build_way(self, cells: set[Cell]) -> list[int]:
+    def build_way(self, cells: set[Cell]) -> list[tuple[int, int]]:
         from optimiser import adapter
-        return adapter(cells)
+        return adapter(self.warehouse, cells)
