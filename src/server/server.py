@@ -77,6 +77,7 @@ async def server_handler(websocket: ServerConnection) -> None:
         logging.error(f"Ошибка обработки запроса: {e}")
     finally:
         # Удаляем клиента из списка подключённых
+        logging.info(f"Клиент {websocket.id} отключился")
         connected_clients.remove(websocket)
 
 
@@ -96,12 +97,17 @@ async def send_request(websocket: ServerConnection) -> None:
                 continue
 
             # Формирование и отправка сообщения клиенту
+            products = list()
+            for _ in range(len(data)):
+                products.append((random.choice(manager.warehouse.get_all_products()), random.randint(1, 10)))
+
             message = {
                 "type": "request",
                 "message": "Неофициальный результат тестирования",
                 "data": {
                     "worker_id": "UNDEFINED",
                     "moving_cells": [data],
+                    "selected_products": {product.name: count for product, count in products}
                 }
             }
             await websocket.send(json.dumps(message))

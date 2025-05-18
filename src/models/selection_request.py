@@ -6,7 +6,7 @@ from src.exceptions.selection_exceptions import UnsupportedFormat, BadInstance
 from src.models.product import Product
 
 
-class SelectionRequest(object):
+class SelectionRequest:
     """
     Класс, представляющий запрос на выборку продуктов со склада.
 

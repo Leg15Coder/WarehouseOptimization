@@ -159,6 +159,7 @@ async def create_product(data: dict) -> dict:
             time_to_select = product['time_to_select'] if 'time_to_select' in product else 1
             time_to_ship = product['time_to_ship'] if 'time_to_ship' in product else 1
             max_amount = product['max_amount'] if 'max_amount' in product else 64
+            max_per_hand = product['max_per_hand'] if 'max_per_hand' in product else 8
             product_type = product['product_type'] if 'product_type' in product else None
 
             with db.session() as session:
@@ -169,6 +170,7 @@ async def create_product(data: dict) -> dict:
                         time_to_select=time_to_select,
                         time_to_ship=time_to_ship,
                         max_amount=max_amount,
+                        max_per_hand=max_per_hand,
                         product_type=product_type
                     )
 
@@ -266,10 +268,10 @@ async def relieve_worker(data: dict) -> dict:
 time_anchor = datetime.now()
 
 
-async def solve(data: dict) -> Optional[dict]:
+async def solve(data: dict) -> Optional[list]:
     global time_anchor
     data['request'] = None
-    if datetime.now() - time_anchor > timedelta(seconds=20):
+    if datetime.now() - time_anchor > timedelta(seconds=8):
         time_anchor = datetime.now()
         warehouse = data['warehouse']
         request = warehouse.generate_new_request()
@@ -278,18 +280,11 @@ async def solve(data: dict) -> Optional[dict]:
     return await check(data)
 
 
-async def check(data: dict) -> Optional[dict]:
+async def check(data: dict) -> Optional[list]:
     warehouse = data['warehouse']
     result = await warehouse.solve(data['request'])
     if result:
-        return {
-          "type": "response",
-          "code": 103,
-          "status": "ok",
-          "data": {
-              "result": result
-          }
-        }
+        return result
     return None
 
 

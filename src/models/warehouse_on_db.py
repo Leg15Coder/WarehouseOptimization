@@ -1,6 +1,7 @@
 import logging
 import random
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload
 from collections.abc import Mapping
 from typing import Optional
 
@@ -43,7 +44,7 @@ class Warehouse:
         return self.session.query(Cell).all()
 
     def get_cells_by_product_sku(self, sku: int) -> list[Cell]:
-        return self.session.query(Cell).filter(Cell.product_sku == sku).all()
+        return self.session.query(Cell).options(joinedload("*")).filter(Cell.product_sku == sku).all()
 
     def get_cell_by_id(self, cell_id: int) -> Cell:
         return self.session.query(Cell).filter(Cell.cell_id == cell_id).first()
@@ -53,9 +54,9 @@ class Warehouse:
         return user.zones if user else list()
 
     def get_all_products(self) -> list[Product]:
-        return self.session.query(Product).all()
+        return self.session.query(Product).options(joinedload("*")).all()
 
-    def add_product_to_cell(self, cell_id: int, count: int, product_sku: Optional[int] = None) -> bool:
+    def add_product_to_cell(self, cell_id: int, count: int, product_sku: Optional[int] = None, commit: bool = True) -> bool:
         cell = self.session.query(Cell).filter(Cell.cell_id == cell_id).first()
         if cell:
             if cell.product_sku is None:
@@ -64,7 +65,9 @@ class Warehouse:
                 cell.product_sku = product_sku
 
             cell.count += count
-            self.session.commit()
+
+            if commit:
+                self.session.commit()
             return True
         return False
 
@@ -196,7 +199,8 @@ class Warehouse:
             if self.PROBABILITY_OF_FILLING_CELL >= random.random():
                 product = random.choice(products)
                 count = random.randint(1, self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL)
-                self.add_product_to_cell(cell_id, count, product.sku)
+                self.add_product_to_cell(cell_id, count, product.sku, commit=False)
+        self.session.commit()
 
         logging.debug("Склад успешно заполнен")
 
@@ -217,28 +221,27 @@ class Warehouse:
         self.size = (len(layout), len(layout[0]))
         logging.info("Построение модели склада по заданным параметрам")
 
-        with self.session() as session:
-            try:
-                # Удаление всех существующих ячеек
-                session.query(Cell).delete()
-                session.commit()
+        try:
+            # Удаление всех существующих ячеек
+            self.session.query(Cell).delete()
+            self.session.commit()
 
-                # Заполняем базу данных новыми ячейками
-                for x, row in enumerate(layout):
-                    if len(row) != self.size[1]:
-                        raise IncompleteMapException("Переданная карта ячеек имеет непрямоугольный размер")
+            # Заполняем базу данных новыми ячейками
+            for x, row in enumerate(layout):
+                if len(row) != self.size[1]:
+                    raise IncompleteMapException("Переданная карта ячеек имеет непрямоугольный размер")
 
-                    for y, is_storage_cell in enumerate(row):
-                        if is_storage_cell:
-                            cell = Cell(x=x, y=y, count=0, product_sku=None, zone_id=None)
-                            session.add(cell)
+                for y, is_storage_cell in enumerate(row):
+                    if is_storage_cell:
+                        cell = Cell(x=x, y=y, count=0, product_sku=None, zone_id=None)
+                        self.session.add(cell)
 
-                session.commit()
-                logging.info("Склад успешно построен")
-            except SQLAlchemyError as e:
-                session.rollback()
-                logging.error(f"Ошибка при работе с базой данных: {e}")
-                raise WarehouseException("Не удалось построить склад из-за ошибки базы данных")
+            self.session.commit()
+            logging.info("Склад успешно построен")
+        except SQLAlchemyError as e:
+            self.session.rollback()
+            logging.error(f"Ошибка при работе с базой данных: {e}")
+            raise WarehouseException("Не удалось построить склад из-за ошибки базы данных")
 
         self.fill()  # Заполняем склад продуктами
 
