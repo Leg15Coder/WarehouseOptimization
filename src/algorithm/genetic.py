@@ -147,4 +147,4 @@ class GeneticAlgorithm:
 
             population, fitness = new_pop, new_fit
 
-        return best_sol
+        return {self.all_cells_data[cid] for cid in best_sol}

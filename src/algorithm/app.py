@@ -15,6 +15,7 @@ from src.models.selection_request import SelectionRequest
 from src.models.product import Product
 from src.algorithm.clusterizer import Clusterizer, Cluster
 from src.algorithm.size_enum import SizeType
+from src.algorithm.optimiser import adapter
 
 
 class ProductWrapper:
@@ -133,7 +134,9 @@ class Algorithm:
 
                 for product, count in request.items():
                     deadline = datetime.now() + timedelta(seconds=10)
-                    self.requests_in_wait[product] = self.requests_in_wait.get(product, ProductWrapper(count, None))
+                    tmp = self.requests_in_wait.get(product, ProductWrapper(0, None))
+                    tmp.count += count
+                    self.requests_in_wait[product] = tmp
                     self.requests_in_wait[product].push_deadline(deadline)
 
                 if bool(self.outbox_container):
@@ -279,7 +282,6 @@ class Algorithm:
         genetic_algorithm = GeneticAlgorithm(sup_cluster)
         return genetic_algorithm.evolution(order, settings)
 
-    @run_async_thread(__executor)
-    def build_way(self, cells: set[Cell]) -> list[tuple[int, int]]:
-        from optimiser import adapter
+    @run_async_thread(executor__)
+    def build_way(self, cells: set[Cell]) -> list[int]:
         return adapter(self.warehouse, cells)
