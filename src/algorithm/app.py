@@ -280,17 +280,8 @@ class Algorithm:
         }
 
         genetic_algorithm = GeneticAlgorithm(sup_cluster)
-        print(len(sup_cluster))
-        try:
-            return genetic_algorithm.evolution(order, settings)
-        except Exception as ex:
-            print(order)
-            print('genetic error:', ex)
+        return genetic_algorithm.evolution(order, settings)
 
     @run_async_thread(executor__)
     def build_way(self, cells: set[Cell]) -> list[int]:
-        print('!! ', cells)
-        if cells is None:
-            return list()
-        return [cell.cell_id for cell in cells]
-        # return adapter(cells)
+        return adapter(self.warehouse, cells)
