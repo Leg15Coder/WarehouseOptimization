@@ -286,7 +286,5 @@ class Algorithm:
 
     @run_async_thread(executor__)
     def build_way(self, cells: set[Cell]) -> list[int]:
-        if cells is None:
-            return list()
-        res = [int(cell) for cell in cells]
-        return res
+        from optimiser import adapter
+        return adapter(cells)
