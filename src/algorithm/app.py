@@ -231,4 +231,5 @@ class Algorithm:
 
     @run_async_thread(executor__)
     def build_way(self, cells: set[Cell]) -> list[int]:
-        return [cell.cell_id for cell in cells]
+        from optimiser import adapter
+        return adapter(cells)
