@@ -12,5 +12,5 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_clear_sku
     BEFORE UPDATE ON cell
     FOR EACH ROW
-    WHEN (OLD.count <> 0 AND NEW.count = 0)
+    WHEN (OLD.count > 0 AND NEW.count <= 0)
 EXECUTE FUNCTION clear_sku_when_empty();

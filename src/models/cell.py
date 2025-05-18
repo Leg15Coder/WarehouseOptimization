@@ -15,3 +15,6 @@ class Cell(Base):
 
     product = relationship('Product', back_populates='cells')
     zone = relationship('Zone', back_populates='cells')
+
+    def __str__(self):
+        return f"<Cell [{self.x}, {self.y}]: {self.count} with sku={self.product_sku}>"

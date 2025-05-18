@@ -15,6 +15,7 @@ class Product(Base):
     time_to_select = Column(Float, nullable=False)
     time_to_ship = Column(Float, nullable=False)
     max_amount = Column(Integer)
+    max_per_hand = Column(Integer)
     product_type = Column(String)
 
     cells = relationship('Cell', back_populates='product')
@@ -40,11 +41,8 @@ class Product(Base):
         """
         return str(self.sku)
 
-    def __repr__(self):
-        """
-        Возвращает строковое представление товара для целей отладки.
+    def __hash__(self):
+        return self.sku.__hash__()
 
-        Returns:
-            str: Артикул продукта.
-        """
-        return self.__str__()
+    def __eq__(self, other):
+        return isinstance(other, Product) and self.sku == other.sku

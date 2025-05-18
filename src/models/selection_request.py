@@ -1,10 +1,12 @@
 from typing import Iterable
 
+from datetime import datetime, timedelta
+
 from src.exceptions.selection_exceptions import UnsupportedFormat, BadInstance
 from src.models.product import Product
 
 
-class SelectionRequest(object):
+class SelectionRequest:
     """
     Класс, представляющий запрос на выборку продуктов со склада.
 
@@ -26,22 +28,17 @@ class SelectionRequest(object):
         """
         self.data = dict()  # Словарь для хранения продуктов и их количества.
         self.add_products_from_list(args)
+        self.deadline = datetime.now() + timedelta(seconds=10)
 
     def __ior__(self, other):
         for product, count in other.items():
-            if product in self.data:
-                self.data[product] += count
-            else:
-                self.data[product] = count
+            self.data[product] = self.data.get(product, 0) + count
         return self
 
     def __or__(self, other):
         data = self.data.copy()
         for product, count in other.items():
-            if product in data:
-                data[product] += count
-            else:
-                data[product] = count
+            self.data[product] = self.data.get(product, 0) + count
         return SelectionRequest(*((key, data[key]) for key in data))
 
     def __sub__(self, other):
@@ -64,8 +61,22 @@ class SelectionRequest(object):
     def __iter__(self):
         return self.data
 
+    def __contains__(self, item):
+        return item in self.data
+
     def __bool__(self):
         return bool(self.data)
+
+    def __str__(self):
+        return str(self.data)
+
+    def __lt__(self, other):
+        return self.deadline.__lt__(other.deadline)
+
+    def __getitem__(self, item):
+        if item in self:
+            return self.data[item]
+        return None
 
     def add_products_from_list(self, products: Iterable) -> None:
         """

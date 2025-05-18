@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     dbpassword: SecretStr
     dbhost: SecretStr
     dbport: SecretStr
+    wsauth: SecretStr
 
     class Config:
         env_file = 'env/config.env'

@@ -7,13 +7,12 @@ import random
 from websockets.asyncio.server import ServerConnection
 from websockets.exceptions import ConnectionClosed
 
-from src.parsers.json_parser import ParserManager
-from src.exceptions.json_parser_exceptions import ExecutionError
+from src.parsers.json_parser import manager
+from src.exceptions.parser_exceptions import ExecutionError
+from src.parsers.config_parser import config
 
 # Хранение подключённых клиентов
 connected_clients = set()
-# Инициализация менеджера для обработки JSON-запросов
-manager = ParserManager()
 
 
 async def server_handler(websocket: ServerConnection) -> None:
@@ -25,25 +24,49 @@ async def server_handler(websocket: ServerConnection) -> None:
     connected_clients.add(websocket)  # Добавляем клиента в список подключённых
     logging.info(f"Клиент {websocket.id} подключился")
     # Запуск фоновой задачи для отправки статуса сервера клиенту
-    # asyncio.create_task(send_server_status(websocket))
+    asyncio.create_task(send_request(websocket))
 
     try:
         # Чтение сообщений от клиента
         async for message in websocket:
             # Парсинг JSON-сообщения
             data = json.loads(message)
+            logging.info(f"Сервер принял сообщение")
+
+            if 'auth' not in data or data['auth'] != config.wsauth.get_secret_value():
+                await websocket.send(json.dumps(
+                    {
+                        "type": "response",
+                        "code": 401,
+                        "status": "error",
+                        "message": "Не авторизован"
+                    }
+                ))
+                continue
 
             try:
+                if 'type' not in data:
+                    await websocket.send(json.dumps(
+                        {
+                            "type": "response",
+                            "code": 100,
+                            "status": "ok"
+                        }
+                    ))
+                    continue
+
                 data['websocket'] = websocket
-                await manager.execute(data)
-                logging.info(f"Сервер принял сообщение {data}")
+                response = await manager.execute(data)
+                if response is not None:
+                    await websocket.send(json.dumps(response))
+                    logging.debug("Сервер ответил")
             except Exception as e:
-                logging.warn(f"Ошибка обработки на стороне сервера {e}")
+                logging.error(f"Ошибка обработки на стороне сервера {e}")
                 response = {
                     "type": "answer",
-                    "status": "Internal Server Error",
+                    "status": "error",
                     "code": 500,
-                    "message": str(e)
+                    "message": "Фатальная ошибка на стороне сервера"
                 }
                 await websocket.send(json.dumps(response))
 
@@ -54,10 +77,11 @@ async def server_handler(websocket: ServerConnection) -> None:
         logging.error(f"Ошибка обработки запроса: {e}")
     finally:
         # Удаляем клиента из списка подключённых
+        logging.info(f"Клиент {websocket.id} отключился")
         connected_clients.remove(websocket)
 
 
-async def send_server_status(websocket: ServerConnection) -> None:
+async def send_request(websocket: ServerConnection) -> None:
     """
     Периодически отправляет клиенту обновлённое состояние сервера.
 
@@ -66,19 +90,28 @@ async def send_server_status(websocket: ServerConnection) -> None:
     while True:
         try:
             # Выполнение запроса для получения данных сервера
-            data = await manager.execute({"type": "solve"})
+            data = await manager.execute({"type": "run"})
 
-            if data is None:
-                await asyncio.sleep(0.1)
+            if data is None or not data:
+                await asyncio.sleep(1)
                 continue
 
             # Формирование и отправка сообщения клиенту
+            products = list()
+            for _ in range(len(data)):
+                products.append((random.choice(manager.warehouse.get_all_products()), random.randint(1, 10)))
+
             message = {
-                "type": "server_update",
-                "body": data
+                "type": "request",
+                "message": "Неофициальный результат тестирования",
+                "data": {
+                    "worker_id": "UNDEFINED",
+                    "moving_cells": [data],
+                    "selected_products": {product.name: count for product, count in products}
+                }
             }
             await websocket.send(json.dumps(message))
-            logging.debug(f"Сервер отправил сообщение {message}")
+            logging.debug(f"Сервер отправил сообщение клиенту {websocket.id}")
 
         except ConnectionClosed:
             logging.info(f"Клиент {websocket.id} отключился")
@@ -86,4 +119,5 @@ async def send_server_status(websocket: ServerConnection) -> None:
         except Exception as e:
             # Логирование ошибок при отправке сообщения
             logging.error(f"Ошибка при отправке сообщения: {e}")
-        await asyncio.sleep(0.5)
+        finally:
+            await asyncio.sleep(1)

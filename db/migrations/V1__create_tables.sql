@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS product (
     time_to_select FLOAT NOT NULL, -- Среднее время на отбор из ячейки (в секундах)
     time_to_ship FLOAT NOT NULL, -- Среднее время на отгрузку из ячейки (в секундах)
     max_amount INTEGER, -- Максимальное количество в ячейке
+    max_per_hand INTEGER,
     product_type VARCHAR -- Категория товара
 );
 
