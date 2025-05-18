@@ -59,7 +59,7 @@ async def server_handler(websocket: ServerConnection) -> None:
                 response = await manager.execute(data)
                 if response is not None:
                     await websocket.send(json.dumps(response))
-                logging.debug("Сервер ответил")
+                    logging.debug("Сервер ответил")
             except Exception as e:
                 logging.error(f"Ошибка обработки на стороне сервера {e}")
                 response = {
@@ -114,4 +114,4 @@ async def send_request(websocket: ServerConnection) -> None:
             # Логирование ошибок при отправке сообщения
             logging.error(f"Ошибка при отправке сообщения: {e}")
         finally:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)

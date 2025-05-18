@@ -1,5 +1,6 @@
 import asyncio
-from asyncio import Queue
+from queue import PriorityQueue as SyncPriorityQueue
+from asyncio import PriorityQueue
 import threading
 from datetime import datetime, timedelta
 import time
@@ -16,19 +17,28 @@ from src.algorithm.clusterizer import Clusterizer, Cluster
 from src.algorithm.size_enum import SizeType
 
 
-executor__ = ThreadPoolExecutor(max_workers=256)
-
-
 class ProductWrapper:
-    def __init__(self, product: Product, nearest_deadline: datetime):
-        self.product = product
-        self.nearest_deadline = nearest_deadline
+    def __init__(self, count: int = 0, nearest_deadline: Optional[datetime] = None):
+        self.count = count
+        self.deadlines = SyncPriorityQueue()
+        if nearest_deadline is not None:
+            self.deadlines.put(nearest_deadline)
 
-    def __eq__(self, other):
-        return (isinstance(other, Product) and other == self.product) or other.product == self.product
+    def push_deadline(self, deadline: Optional[datetime]):
+        if deadline is not None:
+            self.deadlines.put(deadline)
 
-    def __hash__(self):
-        return hash(self.product)
+    def nearest_deadline(self):
+        if self.deadlines.queue:
+            return self.deadlines.queue[0]
+        return None
+
+    def pop_deadline(self):
+        if self.nearest_deadline() is not None:
+            return self.deadlines.get()
+
+
+executor__ = ThreadPoolExecutor(max_workers=256)
 
 
 class Algorithm:
@@ -67,9 +77,9 @@ class Algorithm:
     clusters_controller: Clusterizer
     size_type: SizeType
 
-    requests_queue: Queue[SelectionRequest]
-    requests_in_wait: dict[ProductWrapper, int]
-    requests_in_process: dict[ProductWrapper, int]
+    requests_queue: PriorityQueue[SelectionRequest]
+    requests_in_wait: dict[Product, ProductWrapper]
+    requests_in_process: dict[Product, int]
     outbox_container: list
 
     deadline_flag: __FlagContainer = __FlagContainer()
@@ -87,7 +97,7 @@ class Algorithm:
         self.warehouse = Warehouse(self)
         self.clusters_controller = Clusterizer(self.warehouse)
 
-        self.requests_queue = Queue()
+        self.requests_queue = PriorityQueue()
         self.requests_in_wait = dict()
         self.requests_in_process = dict()
         self.outbox_container = list()
@@ -95,7 +105,7 @@ class Algorithm:
         self._stop_event = threading.Event()
 
     async def start(self):
-        self._async_task = asyncio.create_task(self.check_flags())
+        self._async_task = asyncio.create_task(self.run_process())
         self.size_type = await self.clusters_controller.analyze()
 
     def __del__(self):
@@ -110,34 +120,43 @@ class Algorithm:
             if thread.is_alive():
                 thread.join(timeout=1)
 
-    async def solve(self, request: SelectionRequest) -> Optional[str]:
+    async def solve(self, request: Optional[SelectionRequest]) -> Optional[list[int]]:
         with self.thread_locker:
             async with self.async_locker:
+                if request is None:
+                    request = SelectionRequest()
+
+                while self.requests_queue._queue and not self.requests_queue._queue[0]:
+                    await self.requests_queue.get()
+
                 await self.requests_queue.put(request)
 
                 for product, count in request.items():
-                    wrapper = ProductWrapper(product, datetime.now() + timedelta(seconds=10))
-                    self.requests_in_wait[wrapper] = self.requests_in_wait.get(wrapper, 0) + count
+                    deadline = datetime.now() + timedelta(seconds=10)
+                    self.requests_in_wait[product] = self.requests_in_wait.get(product, ProductWrapper(count, None))
+                    self.requests_in_wait[product].push_deadline(deadline)
 
                 if bool(self.outbox_container):
-                    self.outbox_container.clear()
-                    return "SUCCESS"
+                    res = self.outbox_container[0]
+                    self.outbox_container = self.outbox_container[1:]
+                    return res
 
-    async def check_flags(self):
-        self._run_thread(self._watch_flags_loop)
+    async def run_process(self):
+        self._run_thread(self._watch_max_stack)
         self._run_thread(self._watch_one_product_left)
         self._run_thread(self._schedule_deadline_check)
+        self._run_thread(self._answer_requests)
 
         while True:
-            await self.run_algorithm()
+            await self.check_flags_and_run()
             await asyncio.sleep(0.1)
 
-    def _watch_flags_loop(self):
+    def _watch_max_stack(self):
         while True:
             local_flag = False
-            for wrapper, count in self.requests_in_wait.items():
-                if count >= wrapper.product.max_per_hand:
-                    self.full_stack_flag |= SelectionRequest((wrapper.product, count))
+            for product, wrapper in self.requests_in_wait.items():
+                if not self.full_stack_flag and wrapper.count >= product.max_per_hand:
+                    self.full_stack_flag |= SelectionRequest((product, wrapper.count))
                     local_flag = True
 
             if local_flag:
@@ -161,54 +180,71 @@ class Algorithm:
         while True:
             local_flag = False
 
-            for wrapper, count in self.requests_in_wait.items():
-                if wrapper.nearest_deadline - timedelta(seconds=5) <= datetime.now():
-                    self.deadline_flag |= SelectionRequest((wrapper.product, count))
+            for product, wrapper in self.requests_in_wait.items():
+                if (not self.deadline_flag and wrapper.nearest_deadline() is not None and wrapper.count > 0
+                        and wrapper.nearest_deadline() - timedelta(seconds=5) <= datetime.now()):
+                    self.deadline_flag |= SelectionRequest((product, wrapper.count))
+                    wrapper.pop_deadline()
                     local_flag = True
 
             if local_flag:
                 self.deadline_flag = +self.deadline_flag
             time.sleep(1)
 
+    def _answer_requests(self):
+        while True:
+            to_delete = dict()
+
+            for product, count in self.requests_in_process.items():
+                with self.thread_locker:
+                    if self.requests_queue._queue and product in self.requests_queue._queue[0]:
+                        to_send = min(count, self.requests_queue._queue[0][product])
+                        to_delete[product] = to_send
+                        self.requests_queue._queue[0] -= SelectionRequest((product, to_send))
+
+            with self.thread_locker:
+                for product, count in to_delete.items():
+                    self.requests_in_process[product] -= count
+
+            time.sleep(5)
+
     def _run_thread(self, sync_func) -> None:
         thread = threading.Thread(target=sync_func, daemon=True)
         self.__threads.append(thread)
         thread.start()
 
-    async def run_algorithm(self):
-        clusters, request = None, None
+    async def check_flags_and_run(self):
+        request = None
+
         if self.deadline_flag:
             with self.thread_locker:
-                async with self.async_locker:
-                    await self.add_to_process(self.deadline_flag.request)
-                    request = self.deadline_flag.request
-                    clusters = await self.choose_clusters(self.deadline_flag.request)
-
+                request = self.deadline_flag.request
+                self.deadline_flag = -self.deadline_flag
         elif self.full_stack_flag:
             with self.thread_locker:
-                async with self.async_locker:
-                    await self.add_to_process(self.full_stack_flag.request)
-                    request = self.full_stack_flag.request
-                    clusters = await self.choose_clusters(self.full_stack_flag.request)
-
+                request = self.full_stack_flag.request
+                self.full_stack_flag = -self.full_stack_flag
         elif self.one_product_left_flag:
             with self.thread_locker:
-                async with self.async_locker:
-                    await self.add_to_process(self.one_product_left_flag.request)
-                    request = self.one_product_left_flag.request
-                    clusters = await self.choose_clusters(self.one_product_left_flag.request)
+                request = self.one_product_left_flag.request
+                self.one_product_left_flag = -self.one_product_left_flag
 
-        if clusters:
+        if request:
+            await self.add_to_process(request)
+            clusters = await self.choose_clusters(request)
             cells = await self.choose_cells(request, clusters)
-            self.outbox_container.append(await self.build_way(cells))
+            way = await self.build_way(cells)
+
+            with self.thread_locker:
+                async with self.async_locker:
+                    self.outbox_container.append(way)
 
     async def add_to_process(self, request: SelectionRequest) -> None:
         with self.thread_locker:
             async with self.async_locker:
                 for product, count in request.items():
-                    wrapper = ProductWrapper(product, None)
-                    self.requests_in_wait[wrapper] -= count
-                    self.requests_in_process[wrapper] += self.requests_in_process.get(wrapper, 0) + count
+                    self.requests_in_wait[product].count -= count
+                    self.requests_in_process[product] = self.requests_in_process.get(product, 0) + count
 
     @run_async_thread(executor__)
     def choose_clusters(self, request: SelectionRequest) -> set[Cluster]:
@@ -224,9 +260,9 @@ class Algorithm:
     @run_async_thread(executor__)
     def choose_cells(self, request: SelectionRequest, clusters: set[Cluster]) -> set[Cell]:
         settings = {
-            'population_size': 300,
-            'generations': 1600,
-            'mutation_rate': 0.3
+            'population_size': 100,
+            'generations': 1000,
+            'mutation_rate': 0.33
         }
 
         sup_cluster = {
@@ -236,13 +272,19 @@ class Algorithm:
         }
 
         order = {
-            str(product): count
+            product.sku: count
             for product, count in request.items()
         }
 
         genetic_algorithm = GeneticAlgorithm(sup_cluster)
-        return genetic_algorithm.evolution(order, settings)
+        print(len(sup_cluster))
+        try:
+            return genetic_algorithm.evolution(order, settings)
+        except Exception as ex:
+            print(order)
+            print('genetic error:', ex)
 
     @run_async_thread(executor__)
     def build_way(self, cells: set[Cell]) -> list[int]:
-        return [cell.cell_id for cell in cells]
+        res = [int(cell) for cell in cells]
+        return res

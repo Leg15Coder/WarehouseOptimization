@@ -167,9 +167,9 @@ class Clusterizer:
             if cluster_id == -1  # -1 означает "шум" в DBSCAN
         }
 
-    async def get_clusters(self) -> set[Cluster]:
+    def get_clusters(self) -> set[Cluster]:
         if self.clusters is None or not self.__is_updated:
-            await self.clusterize()
+            # todo await self.clusterize()
             self.__is_updated = True
             return self.clusters
 

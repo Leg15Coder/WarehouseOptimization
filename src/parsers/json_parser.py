@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Optional
+from datetime import datetime, timedelta
 
 from src.algorithm.app import Algorithm
 from src.exceptions.parser_exceptions import ExecutionError
@@ -54,7 +55,6 @@ class ParserManager:
 
     def __getitem__(self, item: str):
         if item in self.namespace:
-            logging.debug(f"Запрос на выполнение задачи {self.namespace[item]}")
             return self.namespace[item]
         else:
             logging.warn("Неизвестный протокол обмена на уровне парсера")
@@ -263,10 +263,24 @@ async def relieve_worker(data: dict) -> dict:
         }
 
 
+time_anchor = datetime.now()
+
+
 async def solve(data: dict) -> Optional[dict]:
+    global time_anchor
+    data['request'] = None
+    if datetime.now() - time_anchor > timedelta(seconds=20):
+        time_anchor = datetime.now()
+        warehouse = data['warehouse']
+        request = warehouse.generate_new_request()
+        data['request'] = request
+
+    return await check(data)
+
+
+async def check(data: dict) -> Optional[dict]:
     warehouse = data['warehouse']
-    request = warehouse.generate_new_request()
-    result = await warehouse.solve(request)
+    result = await warehouse.solve(data['request'])
     if result:
         return {
           "type": "response",

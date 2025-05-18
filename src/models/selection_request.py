@@ -1,5 +1,7 @@
 from typing import Iterable
 
+from datetime import datetime, timedelta
+
 from src.exceptions.selection_exceptions import UnsupportedFormat, BadInstance
 from src.models.product import Product
 
@@ -26,6 +28,7 @@ class SelectionRequest(object):
         """
         self.data = dict()  # Словарь для хранения продуктов и их количества.
         self.add_products_from_list(args)
+        self.deadline = datetime.now() + timedelta(seconds=10)
 
     def __ior__(self, other):
         for product, count in other.items():
@@ -58,11 +61,22 @@ class SelectionRequest(object):
     def __iter__(self):
         return self.data
 
+    def __contains__(self, item):
+        return item in self.data
+
     def __bool__(self):
         return bool(self.data)
 
     def __str__(self):
         return str(self.data)
+
+    def __lt__(self, other):
+        return self.deadline.__lt__(other.deadline)
+
+    def __getitem__(self, item):
+        if item in self:
+            return self.data[item]
+        return None
 
     def add_products_from_list(self, products: Iterable) -> None:
         """

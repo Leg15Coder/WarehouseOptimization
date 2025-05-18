@@ -270,5 +270,11 @@ class Warehouse:
     def get_start(self) -> tuple[int, int]:
         return self.start_cords
 
-    async def solve(self, request: SelectionRequest) -> Optional[dict]:
-        return await self.solver.solve(request)
+    async def solve(self, request: Optional[SelectionRequest]) -> Optional[dict]:
+        result = await self.solver.solve(request)
+
+        if result is not None:
+            result = [self.get_cell_by_id(cell_id) for cell_id in result]
+            result = list(map(lambda cell: (cell.x, cell.y), result))
+
+        return result

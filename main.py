@@ -24,12 +24,13 @@ def get_local_ip():
 
 async def main():
     logging.debug("Инициализация сервера")
+
+    await manager.warehouse.solver.start()
+    logging.debug("Алгоритм инициализирован")
+
     server = await websockets.serve(server_handler, "0.0.0.0", 8765)
     local_ip = get_local_ip()
     logging.info(f"Сервер запущен на ws://{local_ip}:8765")
-
-    await manager.warehouse.solver.start()
-    logging.info("Алгоритм инициализирован")
 
     await server.wait_closed()
 
