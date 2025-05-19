@@ -1,8 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card"
-import type { Request } from "@/app/page"
+import type { Order } from "@/app/page"
 
 interface RequestSlideProps {
-  request: Request
+  request: Order
   index: number
 }
 

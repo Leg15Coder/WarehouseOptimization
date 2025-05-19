@@ -14,9 +14,8 @@ interface FileStatus {
   status: "uploading" | "completed" | "error"
 }
 
-export default function FileUpload({setWarehouse, socket}: {
-  setWarehouse: (warehouse: boolean[][]) => void,
-  socket: RefObject<WebSocket | null>
+export default function FileUpload({setWarehouseAction}: {
+  setWarehouseAction: (warehouse: boolean[][]) => void
 }) {
   const [files, setFiles] = useState<FileStatus[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -62,16 +61,8 @@ export default function FileUpload({setWarehouse, socket}: {
                 warehouse[pair.x - 1][pair.y - 1] = true
               })
               warehouse = warehouse.reverse()
-              warehouse.forEach((row) => {
-                row = row.reverse()
-              })
-              setWarehouse(warehouse)
-              socket.current?.send(
-                JSON.stringify({
-                  type: "warehouse_map",
-                  map: warehouse,
-                }),
-              )
+              warehouse.forEach((row) => row.reverse())
+              setWarehouseAction(warehouse)
             })
           } else {
             newFiles[index].progress += 5
@@ -155,7 +146,7 @@ export default function FileUpload({setWarehouse, socket}: {
                     className="h-8 w-8"
                     onClick={() => {
                       setFiles((prev) => prev.filter((_, i) => i !== index))
-                      setWarehouse([])
+                      setWarehouseAction([])
                     }}
                   >
                     <X className="h-4 w-4"/>
@@ -167,14 +158,6 @@ export default function FileUpload({setWarehouse, socket}: {
           </div>
         )}
       </CardContent>
-      {/*<CardFooter className="justify-between">*/}
-      {/*  <p className="text-sm text-gray-500">{files.length} файлов выбрано </p>*/}
-      {/*  {files.length > 0 && (*/}
-      {/*    <Button onClick={() => setFiles([])} variant="outline" className="ml-auto">*/}
-      {/*      Clear All*/}
-      {/*    </Button>*/}
-      {/*  )}*/}
-      {/*</CardFooter>*/}
     </Card>
   )
 }
