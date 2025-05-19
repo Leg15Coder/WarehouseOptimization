@@ -22,13 +22,13 @@ class Warehouse:
         self.session = db.session
         self.solver = solver
 
-        self.size = (0, 0)
-        self.start_cords = (0, 0)
+        self.size = self.init_size()
+        self.start_cords = (51, 190)
 
         self.EMPTY_CELL_RATIO = 0.5
         self.HEAVILY_FILLED_RATIO = 0.5
 
-        self.PROBABILITY_OF_FILLING_CELL = 0.33
+        self.PROBABILITY_OF_FILLING_CELL = 0.555
         self.MAX_COUNT_TO_ADD_ON_EMPTY_CELL = 64
         self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL = 16
         self.workers = 1
@@ -39,6 +39,13 @@ class Warehouse:
 
     def height(self) -> int:
         return self.size[1]
+
+    def init_size(self) -> tuple[int, int]:
+        all_cells = self.get_all_cells()
+        width = max({*map(lambda cell: cell.x, all_cells)} | {0})
+        height = max({*map(lambda cell: cell.y, all_cells)} | {0})
+
+        return width, height
 
     def get_all_cells(self) -> list[Cell]:
         return self.session.query(Cell).all()
@@ -85,10 +92,10 @@ class Warehouse:
 
     def is_moving_cell(self, cell: tuple[int, int]) -> bool:
         x, y = cell
-        if x > max(self.size) or y > max(self.size):
+        if x > max(self.size) or y > max(self.size) or x < 0 or y < 0:
             return True
 
-        return any(self.session.query(Cell).filter(Cell.x == x, Cell.y == y))
+        return not any(self.session.query(Cell).filter(Cell.x == x, Cell.y == y).all())
 
     def add_workers(self, count: int) -> int:
         """
@@ -163,13 +170,13 @@ class Warehouse:
         if not products:
             raise EmptyListOfProductsException("В базе данных нет ни одного продукта для создания запроса")
 
-        size = random.randint(1, max(0, len(products) - 1))
+        size = random.randint(1, 8)
         result = list()
 
         for _ in range(size):
             product = random.choice(products)
             products.remove(product)
-            result.append((product, random.randint(1, 8)))
+            result.append((product, random.randint(1, 5)))
 
         result = SelectionRequest(*result)
         logging.debug(f"Добавлен новый запрос на отбор товаров: {result}")
@@ -196,9 +203,9 @@ class Warehouse:
         for cell in cells:
             cell_id, x, y = cell.cell_id, cell.x, cell.y
 
-            if self.PROBABILITY_OF_FILLING_CELL >= random.random():
+            if self.PROBABILITY_OF_FILLING_CELL > random.random():
                 product = random.choice(products)
-                count = random.randint(1, self.MAX_COUNT_TO_ADD_ON_NOT_EMPTY_CELL)
+                count = random.randint(1, product.max_amount)
                 self.add_product_to_cell(cell_id, count, product.sku, commit=False)
         self.session.commit()
 
@@ -275,9 +282,4 @@ class Warehouse:
 
     async def solve(self, request: Optional[SelectionRequest]) -> Optional[dict]:
         result = await self.solver.solve(request)
-
-        if result is not None:
-            result = [self.get_cell_by_id(cell_id) for cell_id in result]
-            result = list(map(lambda cell: (cell.x, cell.y), result))
-
         return result

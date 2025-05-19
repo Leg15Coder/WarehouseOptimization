@@ -98,14 +98,14 @@ async def send_request(websocket: ServerConnection) -> None:
 
             # Формирование и отправка сообщения клиенту
             products = list()
-            for _ in range(len(data)):
-                products.append((random.choice(manager.warehouse.get_all_products()), random.randint(1, 10)))
+            for _ in range(len(list(filter(lambda x: 'product' == x[2], data)))):
+                products.append((random.choice(manager.warehouse.get_all_products()), random.randint(1, 20)))
 
             message = {
                 "type": "request",
                 "message": "Неофициальный результат тестирования",
                 "data": {
-                    "worker_id": "UNDEFINED",
+                    "worker_id": "Вадим Зачесов",
                     "moving_cells": [data],
                     "selected_products": {product.name: count for product, count in products}
                 }

@@ -24,8 +24,8 @@ class ParserManager:
         """
         Инициализирует объект ParserManager, создавая склад и определяя список поддерживаемых команд.
         """
-        logging.debug("Инициализация парсера данных формата JSON")
-        self.warehouse = Warehouse(Algorithm())
+        logging.debug("Инициализация менеджера запросов")
+        self.warehouse = Algorithm().warehouse
         self.namespace = {
             "create_warehouse": build_map,
             "server_status": do_nothing,
@@ -265,13 +265,13 @@ async def relieve_worker(data: dict) -> dict:
         }
 
 
-time_anchor = datetime.now()
+time_anchor = datetime.now() - timedelta(days=1)
 
 
 async def solve(data: dict) -> Optional[list]:
     global time_anchor
     data['request'] = None
-    if datetime.now() - time_anchor > timedelta(seconds=8):
+    if datetime.now() - time_anchor > timedelta(seconds=33):
         time_anchor = datetime.now()
         warehouse = data['warehouse']
         request = warehouse.generate_new_request()

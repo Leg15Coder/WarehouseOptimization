@@ -134,7 +134,7 @@ class Algorithm:
 
                 for product, count in request.items():
                     deadline = datetime.now() + timedelta(seconds=10)
-                    tmp = self.requests_in_wait.get(product, ProductWrapper(0, None))
+                    tmp = self.requests_in_wait.get(product, ProductWrapper())
                     tmp.count += count
                     self.requests_in_wait[product] = tmp
                     self.requests_in_wait[product].push_deadline(deadline)
@@ -186,7 +186,7 @@ class Algorithm:
             for product, wrapper in self.requests_in_wait.items():
                 if (not self.deadline_flag and wrapper.nearest_deadline() is not None and wrapper.count > 0
                         and wrapper.nearest_deadline() - timedelta(seconds=5) <= datetime.now()):
-                    self.deadline_flag |= SelectionRequest((product, wrapper.count))
+                    self.deadline_flag |= SelectionRequest((product, max(wrapper.count, product.max_per_hand)))
                     wrapper.pop_deadline()
                     local_flag = True
 
@@ -263,8 +263,8 @@ class Algorithm:
     @run_async_thread(executor__)
     def choose_cells(self, request: SelectionRequest, clusters: set[Cluster]) -> set[Cell]:
         settings = {
-            'population_size': 100,
-            'generations': 1000,
+            'population_size': 270,
+            'generations': 1600,
             'mutation_rate': 0.33
         }
 
@@ -283,5 +283,5 @@ class Algorithm:
         return genetic_algorithm.evolution(order, settings)
 
     @run_async_thread(executor__)
-    def build_way(self, cells: set[Cell]) -> list[int]:
+    def build_way(self, cells: set[Cell]) -> list[tuple[int, int]]:
         return adapter(self.warehouse, cells)
